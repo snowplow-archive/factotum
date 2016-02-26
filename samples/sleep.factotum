@@ -1,0 +1,52 @@
+{
+    "schema": "iglu:com.snowplowanalytics.factotum/factfile/jsonschema/1-0-0",
+    "data": {
+        "name": "sleep demo",
+        "tasks": [
+            {
+                "name": "sleep",
+                "executor": "shell",
+                "command": "sleep",
+                "arguments": [ "5" ],
+                "dependsOn": [],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "sleep2",
+                "executor": "shell",
+                "command": "sleep",
+                "arguments": [ "5" ],
+                "dependsOn": [ "sleep" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "sleep3",
+                "executor": "shell",
+                "command": "sleep",
+                "arguments": [ "5" ],
+                "dependsOn": [ "sleep" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "done",
+                "executor": "shell",
+                "command": "echo",
+                "arguments": [ "done" ],
+                "dependsOn": [ "sleep2", "sleep3" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            }
+        ]
+    }
+}

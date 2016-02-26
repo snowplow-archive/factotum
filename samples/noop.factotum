@@ -1,0 +1,41 @@
+{
+    "schema": "iglu:com.snowplowanalytics.factotum/factfile/jsonschema/1-0-0",
+    "data": {
+        "name": "noop / terminate job example",
+        "tasks": [
+            {
+                "name": "echo alpha",
+                "executor": "shell",
+                "command": "echo",
+                "arguments": [ "alpha" ],
+                "dependsOn": [],
+                "onResult": {
+                    "terminateJobWithSuccess": [ ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "exit",
+                "executor": "shell",
+                "command": "exit",
+                "arguments": [ "99" ],
+                "dependsOn": [ "echo alpha" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 99 ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "this will never run!",
+                "executor": "shell",
+                "command": "echo",
+                "arguments": [ "and omega!" ],
+                "dependsOn": [ "exit" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ ],
+                    "continueJob": [ 0 ]
+                }
+            }
+        ]
+    }
+}

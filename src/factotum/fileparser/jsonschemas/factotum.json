@@ -1,0 +1,98 @@
+{
+  "$schema": "http://iglucentral.com/schemas/com.snowplowanalytics.self-desc/schema/jsonschema/1-0-0#",
+  "self": {
+    "vendor": "com.snowplowanalytics.factotum",
+    "name": "factfile",
+    "version": "1-0-0",
+    "format": "jsonschema"
+  },
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "pattern": "^iglu:[a-zA-Z0-9-_.]+/[a-zA-Z0-9-_]+/[a-zA-Z0-9-_]+/[0-9]+-[0-9]+-[0-9]+$"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "onResult": {
+                "type": "object",
+                "properties": {
+                  "terminateJobWithSuccess": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "maximum": 32767,
+                      "minimum": 0
+                    }
+                  },
+                  "continueJob": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "maximum": 32767,
+                      "minimum": 0
+                    }
+                  }
+                },
+                "required": [
+                  "terminateJobWithSuccess",
+                  "continueJob"
+                ],
+                "additionalProperties": false
+              },
+              "dependsOn": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "executor": {
+                "type": "string"
+              },
+              "arguments": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "executor",
+              "dependsOn",
+              "command",
+              "arguments",
+              "name",
+              "onResult"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "name",
+        "tasks"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "data"
+  ],
+  "additionalProperties": false
+}
