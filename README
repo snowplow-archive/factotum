@@ -1,0 +1,7 @@
+
+The zen of Factotum
+
+1. A DAG should be declarative, not Turing complete
+2. DAGs must be composable from other DAGs
+3. I shouldn't need a Dist Systems degree to run a DAG
+4. Scheduling DAGs is a solved problem
