@@ -13,7 +13,7 @@
 $ factotum job run FILE --var env=prod --var email=bob@acme.com
 ```
 
-where `FILE` is a local file containing a self-describing JSON per #2 and `--var` specifies variables that we want to make available within the job.
+where `FILE` is a local file containing a self-describing YAML or JSON per #2 and `--var` specifies variables that we want to make available within the job.
 
 The execution will be similar to `make -k` - i.e. keep running as far as possible through the DAG if a task fails.
 
