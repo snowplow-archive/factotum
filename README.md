@@ -7,7 +7,7 @@
 
 ## Spec for first version (move into wiki)
 
-### 1. Running a DAG
+### 1. Running a job
 
 ```bash
 $ factotum job run FILE --var env=prod --var email=bob@acme.com
