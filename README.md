@@ -10,7 +10,7 @@
 ### 1. Running a DAG
 
 ```bash
-$ factotum dag run FILE
+$ factotum job run FILE
 ```
 
 where `FILE` is a local file containing a self-describing JSON per #2.
@@ -36,7 +36,7 @@ TODO: please turn these three out-of-scopes into tickets.
 We need this so we can start migrating makefiles over to Factotum.
 
 ```bash
-$ factotum dag make2factotum FILE
+$ factotum job make2factotum FILE
 ```
 
 where `FILE` is a minimalistic Makefile, containing only the following elements:
