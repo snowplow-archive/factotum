@@ -1,0 +1,41 @@
+{
+    "schema": "iglu:com.snowplowanalytics.factotum/factfile/jsonschema/1-0-0",
+    "data": {
+        "name": "My First DAG",
+        "tasks": [
+            {
+                "name": "EmrEtlRunner",
+                "executor": "shell",
+                "command": "./acme-emr-etl-runner.sh",
+                "arguments": [ "???", "???" ],
+                "dependsOn": [],
+                "onResult": {
+                    "terminateJobWithSuccess": [],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "StorageLoader",
+                "executor": "shell",
+                "command": "./acme-storage-loader.sh",
+                "arguments": [ "???" ],
+                "dependsOn": [ "EmrEtlRunner" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "SQL Runner",
+                "executor": "shell",
+                "command": "/opt/sql-runner-0.2.0/sql-runner",
+                "arguments": [ "--playbook", "./sql-runner/playbooks/stage-1.yml", "--sqlroot", "./sql-runner/sql" ],
+                "dependsOn": [ "StorageLoader" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            }
+        ]
+    }
+}

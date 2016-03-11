@@ -1,0 +1,19 @@
+{
+    "schema": "iglu:com.snowplowanalytics.factotum/factfile/jsonschema/1-0-0",
+    "data": {
+        "name": "This job cannot execute as onResult is ambiguous",
+        "tasks": [
+            {
+            "name": "ambi",
+            "executor": "shell",
+            "command": "./acme-emr-etl-runner.sh",
+            "arguments": [ "???", "???" ],
+            "dependsOn": [],
+            "onResult": {
+                "terminateJobWithSuccess": [ 0 ], 
+                "continueJob": [ 0 ]
+            }
+            }
+        ]
+    }
+}
