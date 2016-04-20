@@ -21,22 +21,7 @@ use std::thread;
 use std::sync::mpsc;
 use std::collections::HashMap;
 use std::hash::Hash;
-
-fn colour(msg:&str, colour:&str) -> String {
-    format!("{}{}{}", colour, msg, "\x1B[0m")
-}
-
-fn green(msg:&str) -> String {
-    colour(msg, "\x1B[32m")
-}
-
-fn red(msg:&str) -> String {
-    colour(msg, "\x1B[31m")
-}
-
-fn cyan(msg:&str) -> String {
-    colour(msg, "\x1b[36m")
-}
+use colored::*;
 
 enum TaskResult {
     Ok(i32, Duration),
@@ -101,7 +86,7 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
                 let task_name = task.name.to_string();
                 
                 thread::spawn(move || {
-                    println!("Executing task '{}'!", cyan(&task_name));
+                    println!("Executing task '{}'!", &task_name.cyan());
                     let task_result = execute_task(task_name, executor, args, terminate_job_codes, continue_job_codes);
                     tx.send((idx,task_result)).unwrap();
                 });  
@@ -115,7 +100,7 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
             match rx.recv().unwrap() {
                 (idx, TaskResult::Ok(code, duration)) => {                     
                      info!("'{}' returned {} in {}", task_level[idx].name, code, duration); 
-                     println!("Task '{}' after {} returned {}", cyan(&task_level[idx].name), duration, code);
+                     println!("Task '{}' after {} returned {}", &task_level[idx].name.cyan(), duration, code);
                      let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
                      task_result.run = true;
                      task_result.result = Some(RunResult { duration: duration,
@@ -128,7 +113,7 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
                 (idx, TaskResult::InvalidTask(code, msg))   => { 
                     warn!("task '{}' failed to execute!\n{}", task_level[idx].name, msg); 
                     let msg = format!("task '{}' failed to execute!\n{}", task_level[idx].name, msg);
-                    println!("{}", red(&msg));
+                    println!("{}", &msg.red());
                     let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
                     task_result.run = false;
                     task_result.result = Some(RunResult { duration: Duration::seconds(0),
@@ -142,7 +127,7 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
                 },
                 (idx, TaskResult::TerminateJobPlease(code, duration)) => {
                      warn!("job will stop as task '{}' called for termination (no-op) with code {}", task_level[idx].name, code);
-                     println!("Job will now stop as task '{}' ended with {}", cyan(&task_level[idx].name), code);
+                     println!("Job will now stop as task '{}' ended with {}", &task_level[idx].name.cyan(), code);
                      
                      let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
                      task_result.run = true;
@@ -188,11 +173,11 @@ fn execute_task(task_name:String, executor:String, args:String, terminate_job_co
                 info!("task '{}' stderr:\n{}", task_name, task_stderr);
                 
                 if task_stdout.len() != 0 {
-                    println!("Task '{}' wrote the following to STDOUT:\n{}", cyan(&task_name), green(&task_stdout.trim_right()));
+                    println!("Task '{}' wrote the following to STDOUT:\n{}", &task_name.cyan(), &task_stdout.trim_right().green());
                 }
                 
                 if task_stderr.len() != 0 {
-                    println!("Task '{}' wrote the following to STDERR:\n{}", cyan(&task_name), red(&task_stderr.trim_right()));
+                    println!("Task '{}' wrote the following to STDERR:\n{}", &task_name.cyan(), &task_stderr.trim_right().red());
                 }
                 
                 if terminate_job_codes.contains(&return_code) {

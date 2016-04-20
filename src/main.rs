@@ -21,6 +21,7 @@ extern crate daggy;
 extern crate rustc_serialize;
 extern crate valico;
 extern crate time;
+extern crate colored;
 
 use getopts::Options;
 use std::env;
