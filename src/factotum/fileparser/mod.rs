@@ -23,14 +23,22 @@ use rustc_serialize::json::ParserError::{self, SyntaxError, IoError};
 use super::factfile;
 use valico::json_schema;
 use valico::common::error::*;
+use std::error::Error;
 
-pub fn parse(factfile:&str) -> Result<factfile::Factfile, String> {
+extern crate mustache;
+
+pub fn parse(factfile:&str, env:Option<String>) -> Result<factfile::Factfile, String> {
     info!("reading {} into memory", factfile);
     let mut fh = try!(File::open(&factfile).map_err(|e| format!("Couldn't open '{}' for reading: {}", factfile, e)));
     let mut f = String::new();
     try!(fh.read_to_string(&mut f).map_err(|e| format!("Couldn't read '{}': {}", factfile, e))); 
     info!("file {} was read successfully!", factfile);
-    parse_str(&f, factfile)
+    
+    parse_str(&f, factfile, env)
+}
+
+pub fn inflate_env(env:&str) -> Result<Json,String> {    
+    Json::from_str(env).map_err(|err| format!("Supplied environment/config '{}' is not valid JSON: {}", env, Error::description(&err)))
 }
 
 // there must be a way to do this normally
@@ -41,7 +49,7 @@ fn get_human_readable_parse_error(e:ParserError) -> String {
     }
 }
 
-fn parse_str(json:&str, from_filename:&str) -> Result<factfile::Factfile, String> {
+fn parse_str(json:&str, from_filename:&str, env:Option<String>) -> Result<factfile::Factfile, String> {
     info!("parsing json:\n{}", json);
     let factotum_schema_str: &'static str = include_str!("./jsonschemas/factotum.json");
     let factotum_schema = if let Ok(fs) = Json::from_str(factotum_schema_str) {
@@ -62,7 +70,16 @@ fn parse_str(json:&str, from_filename:&str) -> Result<factfile::Factfile, String
     
     if json_schema_validation.is_valid() {
         info!("'{}' matches the factotum schema definition!", from_filename);
-        parse_valid_json(json).map_err(|msg| format!("'{}' is not a valid factotum factfile: {}", from_filename, msg))
+        
+        let conf = if let Some(c) = env {
+            info!("inflating config:\n{}", c);
+            Some(try!(inflate_env(&c)))
+        } else {
+            info!("no config specified!");  
+            None          
+        };
+
+        parse_valid_json(json, conf).map_err(|msg| format!("'{}' is not a valid factotum factfile: {}", from_filename, msg))
     } else {
         let errors_str = json_schema_validation.errors.iter()
                                         .map(|e| format!("'{}' - {}{}", e.get_path(),
@@ -106,7 +123,14 @@ struct FactfileTaskResultFormat {
     continueJob: Vec<i32>
 }
 
-fn parse_valid_json(file:&str) -> Result<factfile::Factfile, String> {
+fn mustache_str(template:&str, env:&Json) -> Result<String,String> {
+     let compiled_template = mustache::compile_str(&template);
+     let mut bytes = vec![];
+     try!(compiled_template.render(&mut bytes, &env).map_err(|e| format!("Error rendering template: {}", Error::description(&e))));
+     String::from_utf8(bytes).map_err(|e| format!("Error inflating rendered template to utf8: {}", Error::description(&e)))
+}
+
+fn parse_valid_json(file:&str, conf:Option<Json>) -> Result<factfile::Factfile, String> {
     let schema: SelfDescribingJson = try!(json::decode(file).map_err(|e| e.to_string())); 
     let decoded_json = schema.data;
     let mut ff = factfile::Factfile::new(decoded_json.name);
@@ -122,9 +146,26 @@ fn parse_valid_json(file:&str) -> Result<factfile::Factfile, String> {
                }
            }
         }
+        
+        let mut decorated_args = vec![];            
+        if let Some(ref subs) = conf {
+            info!("applying variables command and args of '{}'", &file_task.name);
+            
+            info!("before:\n\tcommand: '{}'\n\targs: '{}'", file_task.command, file_task.arguments.join(" "));
+            
+            let decorated_command = try!(mustache_str(&file_task.command, &subs));
+            
+
+            for arg in file_task.arguments.iter() {
+                decorated_args.push( try!(mustache_str(arg, &subs)) )
+            }
+            
+            info!("after:\n\tcommand: '{}'\n\targs: '{}'", decorated_command, decorated_args.join(" "));            
+        } 
 
         let deps:Vec<&str> = file_task.dependsOn.iter().map(AsRef::as_ref).collect();
-        let args:Vec<&str> = file_task.arguments.iter().map(AsRef::as_ref).collect();
+        let args:Vec<&str> = decorated_args.iter().map(AsRef::as_ref).collect();
+                
         ff.add_task(&file_task.name,
                     &deps,
                     &file_task.executor, 

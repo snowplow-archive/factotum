@@ -1,0 +1,19 @@
+{
+    "schema": "iglu:com.snowplowanalytics.factotum/factfile/jsonschema/1-0-0",
+    "data": {
+        "name": "Variables demo",
+        "tasks": [
+            {
+                "name": "Say something",
+                "executor": "shell",
+                "command": "echo",
+                "arguments": [ "{{ message }}" ],
+                "dependsOn": [],
+                "onResult": {
+                    "terminateJobWithSuccess": [],
+                    "continueJob": [ 0 ]
+                }
+            }
+        ]
+    }
+}

@@ -26,23 +26,26 @@ extern crate colored;
 use getopts::Options;
 use std::env;
 use std::fs;
-
+use factotum::runner::ExecutionResult;
 
 mod factotum;
 
-use factotum::runner::ExecutionResult;
+const PROC_SUCCESS: i32 = 0;
+const PROC_PARSE_ERROR: i32 = 1;
+const PROC_EXEC_ERROR: i32 = 2;
+const PROC_OTHER_ERROR: i32 = 3;
 
 fn print_usage(program:&str, opts:Options) {
     let brief = format!("Usage: {} FILE", program);
     print!("{}", opts.usage(&brief))
 }
 
-fn parse_file(factfile:&str) -> i32 {
-    match factotum::fileparser::parse(factfile) {
+fn parse_file(factfile:&str, env:Option<String>) -> i32 {
+    match factotum::fileparser::parse(factfile, env) {
         Ok(job) => {
             match factotum::runner::execute_factfile(&job) {
-                ExecutionResult::AllTasksComplete(_) => 0,
-                ExecutionResult::EarlyFinishOk(_) => 0, 
+                ExecutionResult::AllTasksComplete(_) => PROC_SUCCESS,
+                ExecutionResult::EarlyFinishOk(_) => PROC_SUCCESS, 
                 ExecutionResult::AbnormalTermination(res) => {
                     let incomplete_tasks = res.iter()
                                               .filter(|r| !r.run)
@@ -50,13 +53,13 @@ fn parse_file(factfile:&str) -> i32 {
                                               .collect::<Vec<String>>()
                                               .join(", ");
                     println!("\nFactotum job executed abnormally - the following tasks were not completed: {}!", incomplete_tasks);
-                    2
+                    return PROC_EXEC_ERROR;
                 }
             }
         }, 
         Err(msg) => {
             println!("{}", msg);
-            1
+            return PROC_PARSE_ERROR;
         }      
     }
 }
@@ -88,16 +91,29 @@ fn factotum() -> i32 {
 
     let mut opts = Options::new();
     opts.optflag("h","help", "print out this help menu");
-
+    opts.optopt("e", "env", "A JSON string to be used to 'fill in' variables", "JSON");
+    
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
         Err(f) => panic!(f.to_string())
     };
 
-    match (matches.opt_present("h"), !matches.free.is_empty()) { // todo --no-colour ? decide on colour outputs. And verbosity 
-        (false, true) => { return parse_file(&matches.free[0].clone()); },
-        (_, _)  => { print_usage(&program, opts); return 1 }
+
+    if matches.opt_present("h") {
+        print_usage(&program, opts);
+        return PROC_OTHER_ERROR;
+    }
+    
+    let env:Option<String> = matches.opt_str("e");
+
+    let inputfile = if !matches.free.is_empty() {
+        matches.free[0].clone()
+    } else {
+        print_usage(&program, opts);
+        return PROC_OTHER_ERROR;
     };
+
+    parse_file(&inputfile, env)
 }
 
 #[test]
