@@ -12,13 +12,20 @@
  * implied.  See the Apache License Version 2.0 for the specific language
  * governing permissions and limitations there under.
  */
+
+use factotum::parser::templater::*; 
+use rustc_serialize::json::Json;
+
+fn from_json(json:&str) -> Json {
+    Json::from_str(json).unwrap()
+}
  
-pub mod factfile;
-pub mod parser;
-pub mod executor;
-pub mod sequencer;
+#[test]
+fn decorated_string_works() {
+    assert_eq!("hello Ed!".to_string(), decorate_str("hello {{name}}!", &from_json("{\"name\":\"Ed\"}")).unwrap());
+}
 
-#[cfg(test)]
-mod tests;
-
-
+#[test]
+fn decorated_nested_string_works() {
+    assert_eq!("hello Ted!".to_string(), decorate_str("hello {{person.name}}!", &from_json("{\"person\": { \"name\":\"Ted\" } }")).unwrap())
+}

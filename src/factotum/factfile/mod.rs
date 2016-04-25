@@ -15,7 +15,9 @@
  
 #[cfg(test)]
 mod tests;
+
 use daggy::*;
+use factotum::sequencer;
 
 pub struct Factfile {
     pub name:String,
@@ -53,12 +55,12 @@ impl Factfile {
 
     pub fn get_tasks_in_order<'a>(&'a self) -> Vec<Vec<&'a Task>> {
         let mut tree:Vec<Vec<&Task>> = vec![];
-        super::get_tasks_in_order(&self.dag, &self.dag.children(self.root).iter(&self.dag).map(|(_, node_idx)| node_idx).collect(), &mut tree);
+        sequencer::get_tasks_in_order(&self.dag, &self.dag.children(self.root).iter(&self.dag).map(|(_, node_idx)| node_idx).collect(), &mut tree);
         tree
     }
 
     fn find_task_by_name(&self, name:&str) -> Option<(NodeIndex, &Task)> {
-        super::find_task_recursive(&self.dag, name, self.root)
+        sequencer::find_task_recursive(&self.dag, name, self.root)
     }
 
     pub fn add_task_obj(&mut self, task:&Task) {

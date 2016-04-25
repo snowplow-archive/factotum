@@ -13,7 +13,7 @@
  * governing permissions and limitations there under.
  */
  
-use factotum::fileparser::*;
+use factotum::parser::*;
 use rustc_serialize::json::Json;
 
 #[inline]
@@ -35,7 +35,7 @@ fn invalid_files_err() {
 fn invalid_json_err() {
     let res = parse(&resource("invalid_json.factotum"), None);
     if let Err(msg) = res {
-        assert_eq!(msg,format!("The factfile '{}' is not valid JSON: invalid syntax at line 1, column 3", resource("invalid_json.factotum")).to_string())
+        assert_eq!(msg,format!("'{}' is not a valid factotum factfile: invalid JSON - invalid syntax at line 1, column 3", resource("invalid_json.factotum")).to_string())
     } else {
         panic!("the file is invalid json - the test should have failed");
     }
