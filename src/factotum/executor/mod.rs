@@ -64,8 +64,21 @@ fn drain_values(mut map:HashMap<String, TaskExecutionResult>, tasks_in_order:&Ve
     task_seq
 }
 
-pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
-    let tasks = factfile.get_tasks_in_order();
+pub fn execute_factfile(factfile:&Factfile, start_from:Option<String>) -> ExecutionResult {
+    
+    let tasks = if let Some(start_task) = start_from {
+        info!("Reduced run! starting from {}", &start_task);
+        factfile.get_tasks_in_order_from(&start_task)  
+    } else {
+        factfile.get_tasks_in_order()
+    };
+    
+    for (idx, task_level) in tasks.iter().enumerate() {
+        info!("Run level: {}", idx);
+        for task in task_level.iter() {
+            info!("Task name: {}", task.name);
+        }
+    }
     
     let mut task_results:HashMap<String, TaskExecutionResult> = HashMap::new(); 
     for task_level in tasks.iter() {    // TODO replace me with helper iterator
@@ -77,7 +90,6 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
               
     for task_level in tasks.iter() {
         // everything in a task "level" gets run together
-        // this isn't quite right in a dag sense, but I think practically it'll be ok (if not we'll come back to it)
         let (tx, rx) = mpsc::channel::<(usize, TaskResult, Option<String>, Option<String>, DateTime<UTC>)>();
     
         for (idx,task) in task_level.iter().enumerate() {
@@ -91,7 +103,6 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
                 let task_name = task.name.to_string();
                 
                 thread::spawn(move || {
-                    //println!("Executing task '{}'!", &task_name.cyan());
                     let start_time = UTC::now();
                     let (task_result, stdout, stderr) = execute_task(task_name, executor, args, terminate_job_codes, continue_job_codes);
                     tx.send((idx, task_result, stdout, stderr, start_time)).unwrap();
@@ -105,8 +116,7 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
         for _ in 0..task_level.len() {                    
             match rx.recv().unwrap() {
                 (idx, TaskResult::Ok(code, duration), stdout, stderr, start_time) => {                    
-                     info!("'{}' returned {} in {:?}", task_level[idx].name, code, duration); // todo; sensible Display implementation of Duration 
-                     //println!("Task '{}' after {} returned {}", &task_level[idx].name.cyan(), duration, code);
+                     info!("'{}' returned {} in {:?}", task_level[idx].name, code, duration); 
                      let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
                      task_result.attempted = true;
                      task_result.run_details = Some(RunResult { run_started: start_time,
@@ -119,7 +129,6 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
                 }, 
                 (idx, TaskResult::Error(code, msg), stdout, stderr, start_time)   => { 
                     warn!("task '{}' failed to execute!\n{}", task_level[idx].name, msg); 
-                    //println!("{}", &msg.red());
                     let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
                     task_result.attempted = true;
                     
@@ -137,7 +146,6 @@ pub fn execute_factfile(factfile:&Factfile) -> ExecutionResult {
                 },
                 (idx, TaskResult::TerminateJobPlease(code, duration), stdout, stderr, start_time) => {
                      warn!("job will stop as task '{}' called for termination (no-op) with code {}", task_level[idx].name, code);
-                     //println!("Job will now stop as task '{}' ended with {}", &task_level[idx].name.cyan(), code);
                      
                      let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
                      task_result.attempted = true;

@@ -18,9 +18,8 @@ mod tests;
 
 use valico::json_schema;
 use valico::common::error::*;
-use rustc_serialize::json::{self, Json, error_str};
+use rustc_serialize::json::{Json, error_str};
 
-use std::error::Error;
 use rustc_serialize::json::ParserError::{self, SyntaxError, IoError};
 
 // there must be a way to do this normally
@@ -58,14 +57,3 @@ pub fn validate_against_factfile_schema(json:&str) -> Result<(), String> {
      
     validate_schema(json, factotum_schema_str)
 }
-
-/*
-//.map_err(|e| format!("The factfile '{}' is not valid JSON: {}", from_filename, get_human_readable_parse_error(e))));
-
- put as test
-    let factotum_schema = if let Ok(fs) = Json::from_str(factotum_schema_str) {
-        fs
-    } else {
-        unreachable!("The JSON schema inside factotum is not valid json");
-    };
-    */

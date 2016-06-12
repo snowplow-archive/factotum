@@ -20,8 +20,7 @@ mod schemavalidator;
 
 use std::io::prelude::*;
 use std::fs::File;
-use rustc_serialize::json::{self, Json, error_str};
-use rustc_serialize::json::ParserError::{self, SyntaxError, IoError};
+use rustc_serialize::json::{self, Json};
 use super::factfile;
 
 use std::error::Error;
@@ -97,8 +96,6 @@ struct FactfileTaskResultFormat {
     terminateJobWithSuccess: Vec<i32>,
     continueJob: Vec<i32>
 }
-
-
 
 fn parse_valid_json(file:&str, conf:Option<Json>) -> Result<factfile::Factfile, String> {
     let schema: SelfDescribingJson = try!(json::decode(file).map_err(|e| e.to_string())); 

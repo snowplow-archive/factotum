@@ -52,17 +52,42 @@ impl Factfile {
         let parent = new_dag.add_node(root_task);
         Factfile { name: name.into(), dag: new_dag, root:parent }
     }
-
-    pub fn get_tasks_in_order<'a>(&'a self) -> Vec<Vec<&'a Task>> {
+    
+    fn get_tasks_in_order_from_node_index<'a>(&'a self, start_node_index:NodeIndex) -> Vec<Vec<&'a Task>> {
         let mut tree:Vec<Vec<&Task>> = vec![];
-        sequencer::get_tasks_in_order(&self.dag, &self.dag.children(self.root).iter(&self.dag).map(|(_, node_idx)| node_idx).collect(), &mut tree);
+        sequencer::get_tasks_in_order(&self.dag, &self.dag.children(start_node_index).iter(&self.dag).map(|(_, node_idx)| node_idx).collect(), &mut tree);
         tree
     }
+    
+    pub fn get_tasks_in_order_from<'a>(&'a self, start_from:&str) -> Vec<Vec<&'a Task>> {
+        if let Some((task_index, task)) = self.find_task_by_name(start_from) {
+            let mut tasks = self.get_tasks_in_order_from_node_index(task_index); // we also need to add in the start task!
+            tasks.insert(0, vec![task]);
+            tasks 
+        } else {
+            panic!("cannot start from {} - task does not exist", start_from);
+        }
+    }
+
+    pub fn get_tasks_in_order<'a>(&'a self) -> Vec<Vec<&'a Task>> {
+        self.get_tasks_in_order_from_node_index(self.root)
+    }    
 
     fn find_task_by_name(&self, name:&str) -> Option<(NodeIndex, &Task)> {
         sequencer::find_task_recursive(&self.dag, name, self.root)
     }
-
+    
+    pub fn can_job_run_from_task(&self, name:&str) -> Result<bool, &'static str> {
+        let task_index = self.find_task_by_name(name);
+        if let Some((node_index, _)) = task_index {
+            Ok(sequencer::is_proper_sub_tree(&self.dag, node_index))
+        } else {
+            Err("the task specified could not be found")
+        }
+    }
+    
+    // this is used in tests
+    #[allow(dead_code)]
     pub fn add_task_obj(&mut self, task:&Task) {
         self.add_task(&task.name,
                       &task.depends_on.iter().map(AsRef::as_ref).collect(),

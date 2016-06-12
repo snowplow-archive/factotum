@@ -69,3 +69,62 @@ fn get_tasks_in_order_basic() {
     compare_tasks(expected,actual);
 }
 
+#[test]
+fn check_valid_subtree() {
+    /*
+          root <-- start here
+         /    \
+       child1 child2
+                 \
+               grandchild  
+    */
+
+    let mut dag = Dag::<Task, ()>::new();
+
+    let parent = make_task("root", &vec![]);                 
+    let root_idx:NodeIndex = dag.add_node(parent);
+    
+    let child1 = make_task("child1", &vec![]);     
+    let child2 = make_task("child2", &vec![]); 
+    
+    dag.add_child(root_idx, (), child1);
+    let (_, child2_idx) = dag.add_child(root_idx, (), child2);
+
+    let grandchild = make_task("grandchild", &vec![]);
+    dag.add_child(child2_idx, (), grandchild);
+    
+    assert_eq!(true, super::is_proper_sub_tree(&dag, root_idx));
+}
+
+#[test]
+fn check_invalid_subtree() {    
+    /*
+          root <-- start here ok
+         /    \
+       child1 child2 <-- start here fails
+           \      \
+            grandchild
+    
+    */
+        
+    let mut dag = Dag::<Task, ()>::new();
+
+    let parent = make_task("root", &vec![]);                 
+    let root_idx:NodeIndex = dag.add_node(parent);
+    
+    let child1 = make_task("child1", &vec![]);     
+    let child2 = make_task("child2", &vec![]); 
+    
+    let (_, child1_idx) = dag.add_child(root_idx, (), child1);
+    let (_, child2_idx) = dag.add_child(root_idx, (), child2);
+
+    let grandchild = make_task("grandchild", &vec![]);
+    
+    let (_, grandchild_idx) = dag.add_child(child2_idx, (), grandchild);
+    
+    dag.add_edge(child1_idx, grandchild_idx, ()).ok().unwrap();
+    
+    assert_eq!(false, super::is_proper_sub_tree(&dag, child2_idx));
+    
+    assert_eq!(true, super::is_proper_sub_tree(&dag, root_idx));
+}

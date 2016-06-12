@@ -125,3 +125,62 @@ fn no_cycles_ok() {
 
     compare_tasks(expected, actual);
 }
+
+#[test]
+fn can_job_run_from_task_name_not_present_in_dag() {
+    // invalid task name
+    let mut ff = Factfile::new("test");
+    ff.add_task_obj(&make_task("a",      &vec![]));
+    ff.add_task_obj(&make_task("b",      &vec!["a"]));
+    ff.add_task_obj(&make_task("c",      &vec!["a"]));
+    
+    match ff.can_job_run_from_task("this task name does not exist") {
+        Err(msg) => assert_eq!(msg, "the task specified could not be found"),
+        Ok(_) => unreachable!("the test has failed as the task does not exist") 
+    }
+}
+
+
+#[test]
+fn can_job_run_from_task_name() {
+    let mut ff = Factfile::new("test");
+    
+    ff.add_task_obj(&make_task("a",      &vec![]));
+    ff.add_task_obj(&make_task("b",      &vec!["a"]));
+    ff.add_task_obj(&make_task("c",      &vec!["a"]));
+    ff.add_task_obj(&make_task("d",      &vec!["b", "c"]));
+    
+    match ff.can_job_run_from_task("c") { // we can't run from c, because d depends on b also
+        Ok(b) => assert_eq!(false, b),
+        _ => unreachable!("the test failed, the task is present") 
+    }
+    
+    match ff.can_job_run_from_task("a") { // we can of course run from the start
+        Ok(b) => assert_eq!(true, b), 
+        _ => unreachable!("the test failed") 
+    }
+}
+
+#[test] 
+#[should_panic(expected = "cannot start from potato - task does not exist")]
+fn running_jobs_from_non_existing_task() {
+    let ff = Factfile::new("test");    
+    match ff.get_tasks_in_order_from("potato") {
+        _ => unreachable!("task doesn't exist, this should panic")
+    }
+}
+
+#[test] 
+fn running_jobs_from_existing_task() {
+    let mut ff = Factfile::new("test");
+    ff.add_task_obj(&make_task("a",      &vec![]));
+    ff.add_task_obj(&make_task("b",      &vec!["a"]));
+    ff.add_task_obj(&make_task("c",      &vec!["b"]));
+    
+    let expected = vec![ vec!["b"],
+                         vec!["c"] ];
+
+    let actual = ff.get_tasks_in_order_from("b");
+
+    compare_tasks(expected, actual);
+}

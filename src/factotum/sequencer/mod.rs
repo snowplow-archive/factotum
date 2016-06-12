@@ -48,7 +48,6 @@ pub fn get_tasks_in_order<'a>(dag: &'a Dag<Task, ()>, start:&Vec<NodeIndex>, tre
     }
 }
 
-
 pub fn find_task_recursive<'a>(dag: &'a Dag<Task, ()>, name:&str, start:NodeIndex) -> Option<(NodeIndex, &'a Task)> {
     if dag.children(start).iter(&dag).count() != 0 {
         if let Some((_, node)) = dag.children(start).find(&dag, |g, _, n| g[n].name == name) {
@@ -64,4 +63,37 @@ pub fn find_task_recursive<'a>(dag: &'a Dag<Task, ()>, name:&str, start:NodeInde
     } else {
         None
     }
+}
+
+pub fn is_proper_sub_tree(dag: &Dag<Task, ()>, start:NodeIndex) -> bool {    
+
+    let mut allowed_deps = vec![];
+    allowed_deps.push(&dag[start]);
+    let mut process_children = vec![ start ];
+    
+    while process_children.len() != 0 {
+               
+        let mut next_to_process = vec![];
+        
+        for child_index in process_children.iter() {
+            for (_, child_node) in dag.children(*child_index).iter(&dag) {
+                allowed_deps.push(&dag[child_node]);
+                next_to_process.push(child_node);
+            }       
+        }
+
+        for child_index in process_children.iter() {
+            if *child_index != start {
+                for (_, parent_node) in dag.parents(*child_index).iter(&dag) {
+                    if !allowed_deps.iter().any(|node| node.name == dag[parent_node].name) {
+                        return false;
+                    }
+                }
+            }
+        }
+                
+        process_children = next_to_process;  
+    }
+    
+    true
 }

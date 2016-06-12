@@ -28,10 +28,9 @@ use std::env;
 use std::fs;
 use factotum::executor::ExecutionResult;
 use factotum::executor::TaskExecutionResult;
-use factotum::executor::RunResult;
+use factotum::factfile::Factfile;
 use colored::*;
 use std::time::Duration;
-use chrono::UTC;
 
 mod factotum;
 
@@ -171,10 +170,44 @@ fn get_task_results_str(task_results:&Vec<TaskExecutionResult>) -> (String, Stri
     (stdout,stderr)
 }
 
-fn parse_file(factfile:&str, env:Option<String>) -> i32 {
+fn validate_start_task(job: &Factfile, start_task:&str) -> Result<(), &'static str> {
+        /*
+               A
+              / \
+             B   C
+            / \ /
+           D   E 
+           
+           We cannot start at B because E depends on C, which depends on A (simiar for C)    
+           
+               A 
+              / \
+             B   C  
+            / \   \ 
+           D   E   F 
+           
+           It's fine to start at B here though, causing B, D, and E to be run 
+        */        
+        
+        match job.can_job_run_from_task(start_task) {
+            Ok(is_good) => if is_good { Ok(()) } else { Err("the job cannot be started here without triggering prior tasks") },
+            Err(msg) => Err(msg)
+        }   
+}
+
+fn parse_file_and_execute(factfile:&str, env:Option<String>, start_from:Option<String>) -> i32 {
     match factotum::parser::parse(factfile, env) {
         Ok(job) => {
-            match factotum::executor::execute_factfile(&job) { // todo this is a stub, and not efficient (calls many times)
+            
+            if let Some(ref start_task) = start_from {
+                if let Err(msg) = validate_start_task(&job, &start_task) {
+                    warn!("The job could not be started from '{}' because {}", start_task, msg);
+                    println!("The job cannot be started from '{}' because {}", start_task.cyan(), msg);
+                    return PROC_OTHER_ERROR;
+                }
+            }
+            
+            match factotum::executor::execute_factfile(&job, start_from) {
                 ExecutionResult::AllTasksComplete(tasks) => { 
                     let (stdout_summary, stderr_summary) = get_task_results_str(&tasks);
                     print!("{}", stdout_summary);
@@ -256,14 +289,14 @@ fn factotum() -> i32 {
     let program = args[0].clone();
 
     let mut opts = Options::new();
-    opts.optflag("h","help", "print out this help menu");
+    opts.optflag("h","help", "Print out this help menu");
     opts.optopt("e", "env", "A JSON string to be used to 'fill in' variables", "JSON");
+    opts.optopt("s", "start", "Start from the specified task name rather than the beginning of the job", "TASK_NAME");
     
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
         Err(f) => panic!(f.to_string())
     };
-
 
     if matches.opt_present("h") {
         print_usage(&program, opts);
@@ -271,6 +304,7 @@ fn factotum() -> i32 {
     }
     
     let env:Option<String> = matches.opt_str("e");
+    let start_task:Option<String> = matches.opt_str("s");
 
     let inputfile = if !matches.free.is_empty() {
         matches.free[0].clone()
@@ -279,7 +313,7 @@ fn factotum() -> i32 {
         return PROC_OTHER_ERROR;
     };
 
-    parse_file(&inputfile, env)
+    parse_file_and_execute(&inputfile, env, start_task)
 }
 
 #[test]
@@ -309,7 +343,10 @@ fn get_duration_with_hours() {
 }
 
 #[test]
-fn test_get_task_result_line_str() {    
+fn test_get_task_result_line_str() {     
+    use chrono::UTC;
+    use factotum::executor::RunResult;
+
     let dt = UTC::now();    
     let sample_task = TaskExecutionResult { 
         name: String::from("hello world"),
@@ -391,7 +428,9 @@ fn test_get_task_result_line_str() {
 
 #[test]
 fn test_get_task_results_str_summary() {
-    
+    use chrono::UTC;
+    use factotum::executor::RunResult;
+
     let dt = UTC::now();
     
     let mut tasks = vec::<TaskExecutionResult>!();
@@ -443,4 +482,65 @@ fn test_get_task_results_str_summary() {
    assert_eq!(two_task_stdout, expected_two_task);
    assert_eq!(two_task_stderr, format!("{}{}", first_task_stderr_str, task_two_stderr.unwrap()));
    
+}
+
+#[test]
+fn test_start_task_validation_not_present() {    
+    let mut factfile = Factfile::new("test");    
+
+    match validate_start_task(&factfile, "something") {
+        Err(r) => assert_eq!(r, "the task specified could not be found"),
+        _ => unreachable!("validation did not fail")
+    }
+    
+    factfile.add_task("something", &vec![], "", "", &vec![], &vec![], &vec![]);
+    if let Err(_) = validate_start_task(&factfile, "something") {
+        unreachable!("validation failed when task present")
+    }
+}
+
+#[test]
+fn test_start_task_cycles() {
+    
+    use factotum::factfile::*;
+    
+    let mut factfile = Factfile::new("test");       
+    
+    let task_a = Task { name: "a".to_string(),
+                        depends_on: vec![],
+                        executor: "".to_string(),
+                        command: "".to_string(),
+                        arguments: vec![],
+                        on_result: OnResult { terminate_job: vec![], continue_job: vec![] } };
+                        
+    let task_b = Task { name: "b".to_string(),
+                        depends_on: vec!["a".to_string()],
+                        executor: "".to_string(),
+                        command: "".to_string(),
+                        arguments: vec![],
+                        on_result: OnResult { terminate_job: vec![], continue_job: vec![] } };
+      
+    let task_c = Task { name: "c".to_string(),
+                        depends_on: vec!["a".to_string()],
+                        executor: "".to_string(),
+                        command: "".to_string(),
+                        arguments: vec![],
+                        on_result: OnResult { terminate_job: vec![], continue_job: vec![] } };        
+                        
+    let task_d = Task { name: "d".to_string(),
+                        depends_on: vec!["c".to_string(),"b".to_string()],
+                        executor: "".to_string(),
+                        command: "".to_string(),
+                        arguments: vec![],
+                        on_result: OnResult { terminate_job: vec![], continue_job: vec![] } };        
+                    
+    factfile.add_task_obj(&task_a);
+    factfile.add_task_obj(&task_b);
+    factfile.add_task_obj(&task_c);
+    factfile.add_task_obj(&task_d);
+    
+    match validate_start_task(&factfile, "c") {
+        Err(r) => assert_eq!(r, "the job cannot be started here without triggering prior tasks"),
+        _ => unreachable!("the task validated when it shouldn't have")
+    }
 }
