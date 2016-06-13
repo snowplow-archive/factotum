@@ -1,6 +1,6 @@
 # Factotum
 
-[![Build Status](https://travis-ci.org/snowplow/factotum.svg?branch=master)](https://travis-ci.org/snowplow/factotum) [![Release 0.1.0](http://img.shields.io/badge/release-0.1.0-blue.svg?style=flat)](https://github.com/snowplow/factotum/releases) [![Apache License 2.0](http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat)](http://www.apache.org/licenses/LICENSE-2.0)
+[![Build Status](https://travis-ci.org/snowplow/factotum.svg?branch=master)](https://travis-ci.org/snowplow/factotum) [![Release 0.2.0](http://img.shields.io/badge/release-0.2.0-blue.svg?style=flat)](https://github.com/snowplow/factotum/releases) [![Apache License 2.0](http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat)](http://www.apache.org/licenses/LICENSE-2.0)
 
 A dag running tool designed for efficiently running complex jobs with non-trivial dependency trees. 
 
@@ -15,18 +15,41 @@ A dag running tool designed for efficiently running complex jobs with non-trivia
 Assuming you're running **64 bit Linux**: 
 
 ```{bash}
-wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.1.0_linux_x86_64.zip
-unzip factotum_0.1.0_linux_x86_64.zip
+wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.2.0_linux_x86_64.zip
+unzip factotum_0.2.0_linux_x86_64.zip
 ./factotum --help
 ```
 
-Factotum currently accepts one argument, which is a **[factotum factfile](/README.md#factfile-format)** that describes the job to run. For example, to run the sample **[sleep.factotum](https://raw.githubusercontent.com/snowplow/factotum/release/0.1.0/samples/sleep.factotum)**:
+Factotum requires one argument, which is a **[factotum factfile](/README.md#factfile-format)** that describes the job to run. For example, to run the sample **[sleep.factotum](https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/sleep.factotum)**:
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.1.0/samples/sleep.factotum
+wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/sleep.factotum
 ./factotum sleep.factotum
 ```
+Specifying variables in the job file can be done using `--env JSON` (or `-e JSON`). The `JSON` here is free-form and needs to correspond to the placeholders you've set in your job.
 
+For example, the following will print "hello world!":
+
+```{bash}
+wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/variables.factotum
+./factotum variables.factotum --env '{ "message": "hello world!" }'
+```
+
+Starting from an arbitrary task can be done using the `--start TASK` or `-s TASK` arguments, where TASK is the name of the task you'd like to start at.
+
+For example, to start at the "echo beta" task in [this job](https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/echo.factotum), you can run the following:
+
+```{bash}
+wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/echo.factotum
+./factotum echo.factotum --start "echo beta"
+```
+
+To get a quick overview of the options provided, you can use the `--help` or `-h` argument:
+
+```{bash}
+./factotum --help
+```
+ 
 For more information on this file format and how to write your own jobs, see the **[Factfile format](/README.md#factfile-format)** section below.
 
 ## Factfile format
