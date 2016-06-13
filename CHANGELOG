@@ -1,3 +1,10 @@
+Version 0.2.0 (2016-06-13)
+--------------------------
+Allow terminal colour toggling using CLICOLOR (#51)
+Improve output to STDERR / STDOUT (#51)
+Support starting from an arbitrary task using --start option (#4)
+Support variables in Factfiles, using mustache / --env option (#21)
+
 Version 0.1.0 (2016-04-08)
 --------------------------
 Initial release
