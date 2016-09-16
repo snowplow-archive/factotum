@@ -15,10 +15,6 @@ Vagrant.configure("2") do |config|
     vb.memory = 2048
   end
 
-  config.push.define "local-exec" do |push|
-    push.script = "vagrant/push.bash"
-  end
-
   config.vm.provision :shell do |sh|
     sh.path = "vagrant/up.bash"
   end
