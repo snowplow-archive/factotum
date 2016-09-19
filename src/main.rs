@@ -433,7 +433,7 @@ fn test_get_task_results_str_summary() {
 
     let dt = UTC::now();
     
-    let mut tasks = vec::<TaskExecutionResult>!();
+    let mut tasks = vec![];
     let (stdout, stderr) = get_task_results_str(&tasks);
     let expected:String = format!("{}", "0/0 tasks run in 0.0s\n".green());
     
