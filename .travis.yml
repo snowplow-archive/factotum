@@ -3,9 +3,17 @@ rust:
 - stable
 - beta
 - nightly
+os: 
+  - linux
+  - osx
 matrix:
   allow_failures:
   - rust: nightly
+deploy:
+  provider: script
+  script: cargo run --quiet -- run deploy/deploy.factfile
+  on:
+    tags: true
 env:
   global:
   - secure: cqb1OSopo5lo0vD2PGzjqhZ3Ku7jBl//qRaOR1tqRNRvGYeU4sXpqh0g9UC0EB+tHWLvhotLYlZMNVMN4Fbqa/PVT79jo66DrEDrMcx5Attk7cITjXZQsIlEUCuEGxPJqNuLv5JAFO4b4o3LQIhgVhagEvafvh7mpyrHAq/u8DeBZjqQFEEjfzZ6p+7YyDduZrwwcON3Ipq0nZ7XBZhqAhy/93n5NWOtGv6yXVJ+t643k+OmqvFIWpvytKx9pi63s/QU30uu3VRgBAyAxn66wc3Y8lT4Vjn6RDMajLwoV+5NxV6oIo/ih1xVHiP6lknMwaPncBaQF5KcL3t1KnozGozhL0lbN4GFRC73DsKX1m/eJOFh40XmD/5q7ClVXmELFE6aJyLIh0M/xhacOyudMS+QXTviD54y58fE7wOPEtyAe3ITIBooRUlBCfr6ezWhPtMR3H3QXhqTg39rMCIFReLLD/yUK7LBqrWlwRtWvcJLwzNwMJ1U6PlR+Kc8GrPCUwrPSdrZe3nAXV8RgCs4Pw1Osz1U0F9G+lZFwSOIls/AR6yhudiLu0Sx0e+KvDeVjK+JokqPe4oj9jLxvn/Og3I/ku++96F2d/Wv6MaLI+KsDZiCPzWE6HpFTYmVkAc/4QQwKjs/YsjzSY4wsUf1neboGHVzR0ioO+yO3CCq7cE=
