@@ -17,7 +17,6 @@
 mod tests;
 
 use valico::json_schema;
-use valico::common::error::*;
 use rustc_serialize::json::{Json, error_str};
 
 use rustc_serialize::json::ParserError::{self, SyntaxError, IoError};

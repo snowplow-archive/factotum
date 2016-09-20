@@ -1,6 +1,5 @@
 use factotum::factfile::Task;
 use factotum::factfile::OnResult;
-use daggy::*;
 
 pub fn compare_tasks(expected:Vec<Vec<&str>>, actual:Vec<Vec<&Task>>) {
     for i in 0..expected.len() {

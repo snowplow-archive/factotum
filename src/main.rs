@@ -16,15 +16,14 @@
 #[macro_use]
 extern crate log;
 extern crate log4rs;
-extern crate getopts;
+extern crate docopt;
 extern crate daggy;
 extern crate rustc_serialize;
 extern crate valico;
 extern crate colored;
 extern crate chrono;
 
-use getopts::Options;
-use std::env;
+use docopt::Docopt;
 use std::fs;
 use factotum::executor::ExecutionResult;
 use factotum::executor::TaskExecutionResult;
@@ -39,6 +38,27 @@ const PROC_PARSE_ERROR: i32 = 1;
 const PROC_EXEC_ERROR: i32 = 2;
 const PROC_OTHER_ERROR: i32 = 3;
 
+const USAGE: &'static str = "
+Factotum.
+
+Usage:
+  factotum run <factfile> [--start=<start_task>] [--env=<env>]
+  factotum (-h | --help)
+
+Options:
+  -h --help             Show this screen.
+  --start=<start_task>  Begin at specified task.
+  --env=<env>           Supply JSON to define mustache variables in Factfile.
+";
+
+#[derive(Debug, RustcDecodable)]
+struct Args {
+    flag_start: Option<String>,
+    flag_env: Option<String>,
+    arg_factfile: String,
+    cmd_run: bool
+}
+
 // macro to simplify printing to stderr
 // https://github.com/rust-lang/rfcs/issues/1078
 macro_rules! print_err {
@@ -52,11 +72,6 @@ macro_rules! print_err {
             }
         }
     )
-}
-
-fn print_usage(program:&str, opts:Options) {
-    let brief = format!("Usage: {} FILE", program);
-    print!("{}", opts.usage(&brief))
 }
 
 fn get_duration_as_string(d:&Duration) -> String {
@@ -285,35 +300,15 @@ fn main() {
 fn factotum() -> i32 {    
     init_logger();
 
-    let args: Vec<String> = env::args().collect();
-    let program = args[0].clone();
+    let args: Args = match Docopt::new(USAGE).and_then(|d| d.decode()) {
+                        Ok(a) => a,
+                        Err(e) => { 
+                            print!("{}", e);
+                            return PROC_OTHER_ERROR  
+                        }
+                    };
 
-    let mut opts = Options::new();
-    opts.optflag("h","help", "Print out this help menu");
-    opts.optopt("e", "env", "A JSON string to be used to 'fill in' variables", "JSON");
-    opts.optopt("s", "start", "Start from the specified task name rather than the beginning of the job", "TASK_NAME");
-    
-    let matches = match opts.parse(&args[1..]) {
-        Ok(m) => m,
-        Err(f) => panic!(f.to_string())
-    };
-
-    if matches.opt_present("h") {
-        print_usage(&program, opts);
-        return PROC_OTHER_ERROR;
-    }
-    
-    let env:Option<String> = matches.opt_str("e");
-    let start_task:Option<String> = matches.opt_str("s");
-
-    let inputfile = if !matches.free.is_empty() {
-        matches.free[0].clone()
-    } else {
-        print_usage(&program, opts);
-        return PROC_OTHER_ERROR;
-    };
-
-    parse_file_and_execute(&inputfile, env, start_task)
+    parse_file_and_execute(&args.arg_factfile, args.flag_env, args.flag_start)
 }
 
 #[test]
