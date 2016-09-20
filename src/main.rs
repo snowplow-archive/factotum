@@ -43,6 +43,7 @@ Factotum.
 
 Usage:
   factotum run <factfile> [--start=<start_task>] [--env=<env>]
+  factotum validate <factfile>
   factotum (-h | --help)
 
 Options:
@@ -56,7 +57,8 @@ struct Args {
     flag_start: Option<String>,
     flag_env: Option<String>,
     arg_factfile: String,
-    cmd_run: bool
+    cmd_run: bool,
+    cmd_validate: bool
 }
 
 // macro to simplify printing to stderr
@@ -210,6 +212,13 @@ fn validate_start_task(job: &Factfile, start_task:&str) -> Result<(), &'static s
         }   
 }
 
+fn validate(factfile:&str, env:Option<String>) -> Result<String, String> {
+    match factotum::parser::parse(factfile, env) {
+        Ok(_) => Ok(format!("'{}' is a valid Factfile!", factfile).green().to_string()),
+        Err(msg) => Err(msg.red().to_string())
+    }
+}
+
 fn parse_file_and_execute(factfile:&str, env:Option<String>, start_from:Option<String>) -> i32 {
     match factotum::parser::parse(factfile, env) {
         Ok(job) => {
@@ -308,7 +317,43 @@ fn factotum() -> i32 {
                         }
                     };
 
-    parse_file_and_execute(&args.arg_factfile, args.flag_env, args.flag_start)
+    if args.cmd_run {
+        parse_file_and_execute(&args.arg_factfile, args.flag_env, args.flag_start)
+    } else if args.cmd_validate {
+        match validate(&args.arg_factfile, args.flag_env) {
+            Ok(msg) => {
+                println!("{}",msg);
+                PROC_SUCCESS
+            },
+            Err(msg) => {
+                println!("{}",msg);
+                PROC_PARSE_ERROR
+            }
+        }
+    } else {
+        unreachable!("Unknown subcommand!")
+    }
+}
+
+#[test]
+fn validate_ok_factfile_good() {
+    let test_file_path = "./tests/resources/example_ok.factotum";
+    let is_valid = validate(test_file_path, None);
+    let expected:String = format!("'{}' is a valid Factfile!", test_file_path).green().to_string();
+    assert_eq!(is_valid, Ok(expected));
+}
+
+#[test]
+fn validate_ok_factfile_bad() {
+    let test_file_path = "./tests/resources/invalid_json.factotum";
+    let is_valid = validate(test_file_path, None);
+    match is_valid {
+        Ok(_) => panic!("Validation returning valid for invalid file"),
+        Err(msg) => {
+            let expected = format!("'{}' is not a valid",test_file_path); 
+            assert_eq!(expected, msg[5..expected.len()+5]) // ignore red colour code
+        }
+    }
 }
 
 #[test]
