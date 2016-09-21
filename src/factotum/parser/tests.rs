@@ -33,9 +33,9 @@ fn invalid_files_err() {
 
 #[test]
 fn invalid_json_err() {
-    let res = parse(&resource("invalid_json.factotum"), None);
+    let res = parse(&resource("invalid_json.factfile"), None);
     if let Err(msg) = res {
-        assert_eq!(msg,format!("'{}' is not a valid factotum factfile: invalid JSON - invalid syntax at line 1, column 3", resource("invalid_json.factotum")).to_string())
+        assert_eq!(msg,format!("'{}' is not a valid factotum factfile: invalid JSON - invalid syntax at line 1, column 3", resource("invalid_json.factfile")).to_string())
     } else {
         panic!("the file is invalid json - the test should have failed");
     }
@@ -43,7 +43,7 @@ fn invalid_json_err() {
 
 #[test]
 fn invalid_against_schema_err() {
-    let invalid = resource("example_invalid_no_name.factotum");
+    let invalid = resource("example_invalid_no_name.factfile");
     let res = parse(&invalid, None);
     if let Err(msg) = res {
         assert_eq!(msg,format!("'{}' is not a valid factotum factfile: '/data/name' - This property is required", invalid).to_string())
@@ -54,7 +54,7 @@ fn invalid_against_schema_err() {
 
 #[test]
 fn invalid_against_schema_wrong_type() {
-    let invalid = resource("example_wrong_type.factotum");
+    let invalid = resource("example_wrong_type.factfile");
     let res = parse(&invalid, None);
     if let Err(msg) = res {
         assert_eq!(msg,format!("'{}' is not a valid factotum factfile: '/data/tasks/0/onResult/terminateJobWithSuccess/0' - Type of the value is wrong (The value must be integer)", invalid).to_string())
@@ -65,7 +65,7 @@ fn invalid_against_schema_wrong_type() {
 
 #[test]
 fn invalid_ambiguous_on_result() {
-    let invalid = resource("example_invalid_terminate_continue_same.factotum");
+    let invalid = resource("example_invalid_terminate_continue_same.factfile");
     let res = parse(&invalid, None);
     if let Err(msg) = res {
         assert_eq!(msg, format!("'{}' is not a valid factotum factfile: the task 'ambi' has conflicting actions.", invalid))
@@ -76,7 +76,7 @@ fn invalid_ambiguous_on_result() {
 
 #[test]
 fn invalid_must_continue() {
-    let invalid = resource("example_invalid_no_continue.factotum");
+    let invalid = resource("example_invalid_no_continue.factfile");
     let res = parse(&invalid, None);
     if let Err(msg) = res {
         assert_eq!(msg, format!("'{}' is not a valid factotum factfile: the task 'continue' has no way to continue successfully.", invalid))
@@ -87,7 +87,7 @@ fn invalid_must_continue() {
 
 #[test]
 fn valid_generates_factfile() {
-    let valid = resource("example_ok.factotum");
+    let valid = resource("example_ok.factfile");
 
     if let Ok(factfile) = parse(&valid, None) {
         let tasks = factfile.get_tasks_in_order();
@@ -105,7 +105,7 @@ fn valid_generates_factfile() {
         assert_eq!(task_three.name, "SQL Runner");
         assert_eq!(task_three.depends_on, vec!["StorageLoader"]);
     } else {
-        panic!("valid factfile example_ok.factotum should have parsed but didn't");
+        panic!("valid factfile example_ok.factfile should have parsed but didn't");
     }
 
 }

@@ -20,28 +20,28 @@ unzip factotum_0.2.0_linux_x86_64.zip
 ./factotum --help
 ```
 
-Factotum requires one argument, which is a **[factotum factfile](/README.md#factfile-format)** that describes the job to run. For example, to run the sample **[sleep.factotum](https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/sleep.factotum)**:
+Factotum requires one argument, which is a **[factotum factfile](/README.md#factfile-format)** that describes the job to run. For example, to run the sample **[sleep.factfile](https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/sleep.factfile)**:
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/sleep.factotum
-./factotum sleep.factotum
+wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/sleep.factfile
+./factotum sleep.factfile
 ```
 Specifying variables in the job file can be done using `--env JSON` (or `-e JSON`). The `JSON` here is free-form and needs to correspond to the placeholders you've set in your job.
 
 For example, the following will print "hello world!":
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/variables.factotum
-./factotum variables.factotum --env '{ "message": "hello world!" }'
+wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/variables.factfile
+./factotum variables.factfile --env '{ "message": "hello world!" }'
 ```
 
 Starting from an arbitrary task can be done using the `--start TASK` or `-s TASK` arguments, where TASK is the name of the task you'd like to start at.
 
-For example, to start at the "echo beta" task in [this job](https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/echo.factotum), you can run the following:
+For example, to start at the "echo beta" task in [this job](https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/echo.factfile), you can run the following:
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/echo.factotum
-./factotum echo.factotum --start "echo beta"
+wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/echo.factfile
+./factotum echo.factfile --start "echo beta"
 ```
 
 To get a quick overview of the options provided, you can use the `--help` or `-h` argument:
@@ -118,7 +118,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
 * Set up a Vagrant box and ssh into it - `vagrant up && vagrant ssh`
    * This will take a few minutes
 * `cd /vagrant`
-* Compile and run a demo - `cargo run -- samples/echo.factotum` 
+* Compile and run a demo - `cargo run -- samples/echo.factfile` 
 
 ### Using stable Rust without Vagrant 
 
@@ -126,7 +126,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
    * on Linux/Mac - `curl -sSf https://static.rust-lang.org/rustup.sh | sh`
 * Clone this repository - `git clone git@github.com:snowplow/factotum.git`
 * `cd factotum`
-* Compile and run a demo - `cargo run -- samples/echo.factotum` 
+* Compile and run a demo - `cargo run -- samples/echo.factfile` 
 
 ## Copyright and license
 

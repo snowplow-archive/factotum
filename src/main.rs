@@ -337,7 +337,7 @@ fn factotum() -> i32 {
 
 #[test]
 fn validate_ok_factfile_good() {
-    let test_file_path = "./tests/resources/example_ok.factotum";
+    let test_file_path = "./tests/resources/example_ok.factfile";
     let is_valid = validate(test_file_path, None);
     let expected:String = format!("'{}' is a valid Factfile!", test_file_path).green().to_string();
     assert_eq!(is_valid, Ok(expected));
@@ -345,7 +345,7 @@ fn validate_ok_factfile_good() {
 
 #[test]
 fn validate_ok_factfile_bad() {
-    let test_file_path = "./tests/resources/invalid_json.factotum";
+    let test_file_path = "./tests/resources/invalid_json.factfile";
     let is_valid = validate(test_file_path, None);
     match is_valid {
         Ok(_) => panic!("Validation returning valid for invalid file"),
