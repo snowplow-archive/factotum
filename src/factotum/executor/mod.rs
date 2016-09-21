@@ -13,59 +13,23 @@
  * governing permissions and limitations there under.
  */
  
-use factotum::factfile::*;
+use factotum::factfile::Task as FactfileTask;
+use factotum::factfile::Factfile;
 use std::process::Command;
-use std::time::{Duration, Instant};
 use std::thread;
 use std::sync::mpsc;
-use std::collections::HashMap;
-use chrono::DateTime;
-use chrono::UTC;
 
-enum TaskResult {
-    Ok(i32, Duration),
-    TerminateJobPlease(i32, Duration),
-    Error(Option<i32>, String)
-}
+pub mod execution_strategy;
+pub mod task_list;
+#[cfg(test)]
+mod tests;
 
-pub struct RunResult {
-   pub run_started: DateTime<UTC>,
-   pub duration: Duration,
-   pub requests_job_termination: bool,
-   pub task_execution_error: Option<String>, 
-   pub stdout: Option<String>,  
-   pub stderr: Option<String>,
-   pub return_code: i32
-}
+use factotum::executor::task_list::*;
+use factotum::executor::execution_strategy::*;
 
-pub struct TaskExecutionResult {
-   pub name: String, 
-   pub attempted: bool,
-   pub run_details: Option<RunResult>
-}
+pub fn get_task_execution_list(factfile:&Factfile, start_from:Option<String>) -> TaskList<&FactfileTask> {
+    let mut task_list = TaskList::<&FactfileTask>::new();
 
-pub enum ExecutionResult {
-    AllTasksComplete(Vec<TaskExecutionResult>),
-    EarlyFinishOk(Vec<TaskExecutionResult>),
-    AbnormalTermination(Vec<TaskExecutionResult>)     
-}
-
-#[inline]
-fn drain_values(mut map:HashMap<String, TaskExecutionResult>, tasks_in_order:&Vec<Vec<&Task>>) -> Vec<TaskExecutionResult> {
-    let mut task_seq:Vec<TaskExecutionResult> = vec![];
-    for task_level in tasks_in_order.iter() {
-        for task in task_level.iter() {
-            match map.remove(&task.name) {
-              Some(task_result) => task_seq.push(task_result),
-              _ => warn!("A task ({}) does not have an execution result? Skipping", task.name)     
-            }            
-        }
-    }
-    task_seq
-}
-
-pub fn execute_factfile(factfile:&Factfile, start_from:Option<String>) -> ExecutionResult {
-    
     let tasks = if let Some(start_task) = start_from {
         info!("Reduced run! starting from {}", &start_task);
         factfile.get_tasks_in_order_from(&start_task)  
@@ -73,39 +37,56 @@ pub fn execute_factfile(factfile:&Factfile, start_from:Option<String>) -> Execut
         factfile.get_tasks_in_order()
     };
     
-    for (idx, task_level) in tasks.iter().enumerate() {
-        info!("Run level: {}", idx);
-        for task in task_level.iter() {
-            info!("Task name: {}", task.name);
+    for task_level in tasks.iter() {
+        let task_group: TaskGroup<&FactfileTask> = task_level
+                                                    .iter()
+                                                    .map(|t| task_list::Task::<&FactfileTask>::new(t.name.clone(), t))
+                                                    .collect();
+        match task_list.add_group(task_group) {
+            Ok(_) => (),
+            Err(msg) => panic!(format!("Couldn't add task to group: {}", msg))
         }
     }
-    
-    let mut task_results:HashMap<String, TaskExecutionResult> = HashMap::new(); 
-    for task_level in tasks.iter() {    // TODO replace me with helper iterator
-        for task in task_level.iter() {
-           let new_task_result = TaskExecutionResult { name: task.name.clone(), attempted: false, run_details:None };
-           task_results.insert(new_task_result.name.clone(), new_task_result );
-        }
-    }    
-              
+
     for task_level in tasks.iter() {
-        // everything in a task "level" gets run together
-        let (tx, rx) = mpsc::channel::<(usize, TaskResult, Option<String>, Option<String>, DateTime<UTC>)>();
+        for task in task_level.iter() {
+            for dep in task.depends_on.iter() {
+                if task_list.is_task_name_present(&dep) && task_list.is_task_name_present(&task.name) {
+                    match task_list.set_child(&dep, &task.name) {
+                        Ok(_) => (),
+                        Err(msg) => panic!(format!("Executor: couldn't add '{}' to child '{}': {}", dep, task.name, msg))
+                    }
+                }
+            }
+        }
+    }
+
+    task_list
+}
+
+
+pub fn execute_factfile<'a, F>(factfile:&'a Factfile, start_from:Option<String>, strategy:F) -> TaskList<&'a FactfileTask>
+    where F : Fn(&str, &mut Command) -> RunResult + Send + Sync + 'static + Copy {
     
-        for (idx,task) in task_level.iter().enumerate() {
+    let mut tasklist = get_task_execution_list(factfile, start_from);
+              
+    for mut task_group in tasklist.tasks.iter_mut() {
+        // everything in a task "group" gets run together
+        let (tx, rx) = mpsc::channel::<(usize, RunResult)>();
+    
+        for (idx,task) in task_group.iter().enumerate() {
             info!("Running task '{}'!", task.name);
             {
                 let tx = tx.clone();
-                let args = format_args(&task.command, &task.arguments);
-                let executor = task.executor.to_string();
-                let continue_job_codes = task.on_result.continue_job.clone();
-                let terminate_job_codes = task.on_result.terminate_job.clone();
+                let args = format_args(&task.task_spec.command, &task.task_spec.arguments);
                 let task_name = task.name.to_string();
                 
                 thread::spawn(move || {
-                    let start_time = UTC::now();
-                    let (task_result, stdout, stderr) = execute_task(task_name, executor, args, terminate_job_codes, continue_job_codes);
-                    tx.send((idx, task_result, stdout, stderr, start_time)).unwrap();
+                    let mut command = Command::new("sh");
+                    command.arg("-c");
+                    command.arg(args);
+                    let task_result = strategy(&task_name, &mut command);
+                    tx.send((idx, task_result)).unwrap();
                 });  
             }          
         }        
@@ -113,107 +94,44 @@ pub fn execute_factfile(factfile:&Factfile, start_from:Option<String>) -> Execut
         let mut terminate_job_please = false; 
         let mut task_failed = false;
         
-        for _ in 0..task_level.len() {                    
-            match rx.recv().unwrap() {
-                (idx, TaskResult::Ok(code, duration), stdout, stderr, start_time) => {                    
-                     info!("'{}' returned {} in {:?}", task_level[idx].name, code, duration); 
-                     let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
-                     task_result.attempted = true;
-                     task_result.run_details = Some(RunResult { run_started: start_time,
-                                                                duration: duration,
-                                                                requests_job_termination: false,
-                                                                task_execution_error: None, 
-                                                                stdout: stdout,  
-                                                                stderr: stderr,
-                                                                return_code: code });                               
-                }, 
-                (idx, TaskResult::Error(code, msg), stdout, stderr, start_time)   => { 
-                    warn!("task '{}' failed to execute!\n{}", task_level[idx].name, msg); 
-                    let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
-                    task_result.attempted = true;
-                    
-                    if let Some(return_code) = code {
-                        task_result.run_details = Some(RunResult {
-                                                            run_started: start_time, 
-                                                            duration: Duration::from_secs(0),
-                                                            requests_job_termination: false,
-                                                            task_execution_error: Some(msg), 
-                                                            stdout: stdout,  
-                                                            stderr: stderr,
-                                                            return_code: return_code });      
-                    }
-                    task_failed = true;
-                },
-                (idx, TaskResult::TerminateJobPlease(code, duration), stdout, stderr, start_time) => {
-                     warn!("job will stop as task '{}' called for termination (no-op) with code {}", task_level[idx].name, code);
-                     
-                     let task_result:&mut TaskExecutionResult = task_results.get_mut(&task_level[idx].name).unwrap();
-                     task_result.attempted = true;
-                     task_result.run_details = Some(RunResult {
-                                                           run_started: start_time, 
-                                                           duration: duration,
-                                                           requests_job_termination: true,
-                                                           task_execution_error: None, 
-                                                           stdout: stdout,  
-                                                           stderr: stderr,
-                                                           return_code: code });     
-                     
-                     terminate_job_please = true; 
-                }
-            }
+        for _ in 0..task_group.len() {                    
+            let (idx, task_result) = rx.recv().unwrap();
+                               
+            info!("'{}' returned {} in {:?}", task_group[idx].name, task_result.return_code, task_result.duration); 
+                
+            if task_group[idx].task_spec.on_result.terminate_job.contains(&task_result.return_code) {
+                // if the return code is in the terminate early list, prune the sub-tree (set to skipped) return early term
+                task_group[idx].state = State::SUCCESS_NOOP;
+                terminate_job_please = true;
+            } else if task_group[idx].task_spec.on_result.continue_job.contains(&task_result.return_code) {
+                // if the return code is in the continue list, return success
+                task_group[idx].state = State::SUCCESS;
+            } else {
+                // if the return code is not in either list, prune the sub-tree (set to skipped) and return error
+                let expected_codes = task_group[idx].task_spec.on_result.continue_job.iter()
+                                                                         .map(|code| code.to_string())
+                                                                         .collect::<Vec<String>>()
+                                                                         .join(",");
+                let err_msg = format!("the task exited with a value not specified in continue_job - {} (task expects one of the following return codes to continue [{}])", 
+                                      task_result.return_code,
+                                      expected_codes);
+                task_group[idx].state = State::FAILED(err_msg);
+                task_failed = true;
+             }
+
+             task_group[idx].run_result = Some(task_result);
         }
         
-        match (terminate_job_please, task_failed) {
-            (_, true) => { return ExecutionResult::AbnormalTermination(drain_values(task_results, &tasks)); },
-            (true, false) => { return ExecutionResult::EarlyFinishOk(drain_values(task_results, &tasks)); }, 
-            _ => {}
+        if terminate_job_please || task_failed {
+            break;
         }
+
     }
 
-    ExecutionResult::AllTasksComplete(drain_values(task_results, &tasks))       
+    tasklist 
 }
 
-fn execute_task(task_name:String, executor:String, args:String, terminate_job_codes:Vec<i32>, continue_job_codes:Vec<i32>) -> (TaskResult, Option<String>, Option<String>) {
-   if executor!="shell" {
-        return (TaskResult::Error(None, "Only shell executions are supported currently!".to_string()), None, None) 
-    } else {
-        let run_start = Instant::now(); 
-        info!("Executing sh -c {:?}", args); 
-        match Command::new("sh").arg("-c").arg(args).output() { 
-            Ok(r) => {
-                let run_duration = run_start.elapsed();
-                let return_code = r.status.code().unwrap_or(1); // 1 will be returned if the process was killed by a signal  
-                
-                let task_stdout: String = String::from_utf8_lossy(&r.stdout).trim_right().into();
-                let task_stderr: String = String::from_utf8_lossy(&r.stderr).trim_right().into();
-                
-                info!("task '{}' stdout:\n'{}'", task_name, task_stdout);
-                info!("task '{}' stderr:\n'{}'", task_name, task_stderr);
-                                
-                let task_stdout_opt = if task_stdout.is_empty() { None } else { Some(task_stdout) };
-                let task_stderr_opt = if task_stderr.is_empty() { None } else { Some(task_stderr) };
-                
-                if terminate_job_codes.contains(&return_code) {
-                    (TaskResult::TerminateJobPlease(return_code, run_duration), task_stdout_opt, task_stderr_opt)
-                } else if continue_job_codes.contains(&return_code) {
-                    (TaskResult::Ok(return_code, run_duration), task_stdout_opt, task_stderr_opt)
-                } else {
-                    let expected_codes = continue_job_codes.iter()
-                                                 .map(|code| code.to_string())
-                                                 .collect::<Vec<String>>()
-                                                 .join(",");
-                    (TaskResult::Error(Some(return_code), format!("the task exited with a value not specified in continue_job - {} (task expects one of the following return codes to continue [{}])", return_code, expected_codes)), 
-                        task_stdout_opt,
-                        task_stderr_opt)
-                }
-            
-            },
-            Err(message) => (TaskResult::Error(None, format!("Error executing process - {}", message)), None, None)
-        }
-    }
-}
-
-fn format_args(command:&str, args:&Vec<String>) -> String {
+pub fn format_args(command:&str, args:&Vec<String>) -> String {
     let arg_str = args.iter()
                       .map(|s| format!("\"{}\"", s))
                       .collect::<Vec<String>>()

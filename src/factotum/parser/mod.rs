@@ -25,21 +25,31 @@ use super::factfile;
 
 use std::error::Error;
 
-pub fn parse(factfile:&str, env:Option<String>) -> Result<factfile::Factfile, String> {
+pub struct TaskReturnCodeMapping {
+    pub continue_job: Vec<i32>,
+    pub terminate_early: Vec<i32>
+}
+
+pub enum OverrideResultMappings {
+    All(TaskReturnCodeMapping),
+    None
+}
+
+pub fn parse(factfile:&str, env:Option<String>, overrides:OverrideResultMappings) -> Result<factfile::Factfile, String> {
     info!("reading {} into memory", factfile);
     let mut fh = try!(File::open(&factfile).map_err(|e| format!("Couldn't open '{}' for reading: {}", factfile, e)));
     let mut f = String::new();
     try!(fh.read_to_string(&mut f).map_err(|e| format!("Couldn't read '{}': {}", factfile, e))); 
     info!("file {} was read successfully!", factfile);
     
-    parse_str(&f, factfile, env)
+    parse_str(&f, factfile, env, overrides)
 }
 
 pub fn inflate_env(env:&str) -> Result<Json,String> {    
     Json::from_str(env).map_err(|err| format!("Supplied environment/config '{}' is not valid JSON: {}", env, Error::description(&err)))
 }
 
-fn parse_str(json:&str, from_filename:&str, env:Option<String>) -> Result<factfile::Factfile, String> {
+fn parse_str(json:&str, from_filename:&str, env:Option<String>, overrides:OverrideResultMappings) -> Result<factfile::Factfile, String> {
     info!("parsing json:\n{}", json);
     
     let validation_result = schemavalidator::validate_against_factfile_schema(json);
@@ -56,7 +66,7 @@ fn parse_str(json:&str, from_filename:&str, env:Option<String>) -> Result<factfi
                 None          
             }; 
             
-            parse_valid_json(json, conf).map_err(|msg| format!("'{}' is not a valid factotum factfile: {}", from_filename, msg))
+            parse_valid_json(json, conf, overrides).map_err(|msg| format!("'{}' is not a valid factotum factfile: {}", from_filename, msg))
         },
         Err(msg) => {
             info!("'{}' failed to match factfile schema definition!", from_filename);
@@ -90,17 +100,18 @@ struct FactfileTaskFormat {
     onResult: FactfileTaskResultFormat
 }
 
-#[derive(RustcDecodable)]
+#[derive(RustcDecodable, Clone)]
 #[allow(non_snake_case)]
 struct FactfileTaskResultFormat {
     terminateJobWithSuccess: Vec<i32>,
     continueJob: Vec<i32>
 }
 
-fn parse_valid_json(file:&str, conf:Option<Json>) -> Result<factfile::Factfile, String> {
+fn parse_valid_json(file:&str, conf:Option<Json>, overrides:OverrideResultMappings) -> Result<factfile::Factfile, String> {
     let schema: SelfDescribingJson = try!(json::decode(file).map_err(|e| e.to_string())); 
     let decoded_json = schema.data;
     let mut ff = factfile::Factfile::new(decoded_json.name);
+
     for file_task in decoded_json.tasks.iter() { // TODO errs in here - ? add task should Result not panic! 
         info!("adding task '{}'", file_task.name);
         
@@ -113,7 +124,7 @@ fn parse_valid_json(file:&str, conf:Option<Json>) -> Result<factfile::Factfile, 
                }
            }
         }
-        
+
         let mut decorated_args = vec![];            
         if let Some(ref subs) = conf {
             info!("applying variables command and args of '{}'", &file_task.name);
@@ -122,7 +133,6 @@ fn parse_valid_json(file:&str, conf:Option<Json>) -> Result<factfile::Factfile, 
             
             let decorated_command = try!(templater::decorate_str(&file_task.command, &subs));
             
-
             for arg in file_task.arguments.iter() {
                 decorated_args.push( try!(templater::decorate_str(arg, &subs)) )
             }
@@ -137,14 +147,19 @@ fn parse_valid_json(file:&str, conf:Option<Json>) -> Result<factfile::Factfile, 
 
         let deps:Vec<&str> = file_task.dependsOn.iter().map(AsRef::as_ref).collect();
         let args:Vec<&str> = decorated_args.iter().map(AsRef::as_ref).collect();
+
+        let (terminate_mappings, continue_mappings) = match overrides {
+            OverrideResultMappings::All(ref with_value) => (&with_value.terminate_early, &with_value.continue_job),
+            OverrideResultMappings::None => (&file_task.onResult.terminateJobWithSuccess, &file_task.onResult.continueJob)
+        };        
                 
         ff.add_task(&file_task.name,
                     &deps,
                     &file_task.executor, 
                     &file_task.command,
                     &args,
-                    &file_task.onResult.terminateJobWithSuccess,
-                    &file_task.onResult.continueJob);
+                    terminate_mappings,
+                    continue_mappings);
     }
     Ok(ff)
 }

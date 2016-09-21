@@ -25,6 +25,7 @@ pub struct Factfile {
     root: NodeIndex
 }
 
+#[derive(Clone)]
 pub struct Task {
     pub name: String,
     pub depends_on: Vec<String>,
@@ -34,6 +35,7 @@ pub struct Task {
     pub on_result: OnResult
 }
 
+#[derive(Clone)]
 pub struct OnResult {
     pub terminate_job: Vec<i32>,
     pub continue_job: Vec<i32>
