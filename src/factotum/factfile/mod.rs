@@ -15,9 +15,11 @@
  
 #[cfg(test)]
 mod tests;
+mod dot;
 
 use daggy::*;
 use factotum::sequencer;
+
 
 pub struct Factfile {
     pub name:String,
@@ -25,7 +27,7 @@ pub struct Factfile {
     root: NodeIndex
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct Task {
     pub name: String,
     pub depends_on: Vec<String>,
@@ -35,7 +37,7 @@ pub struct Task {
     pub on_result: OnResult
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct OnResult {
     pub terminate_job: Vec<i32>,
     pub continue_job: Vec<i32>
@@ -54,7 +56,11 @@ impl Factfile {
         let parent = new_dag.add_node(root_task);
         Factfile { name: name.into(), dag: new_dag, root:parent }
     }
-    
+
+    pub fn as_dotfile(&self, start_task:Option<String>) -> String {
+        dot::generate_graphviz_dot(&self, start_task)
+    }
+
     fn get_tasks_in_order_from_node_index<'a>(&'a self, start_node_index:NodeIndex) -> Vec<Vec<&'a Task>> {
         let mut tree:Vec<Vec<&Task>> = vec![];
         sequencer::get_tasks_in_order(&self.dag, &self.dag.children(start_node_index).iter(&self.dag).map(|(_, node_idx)| node_idx).collect(), &mut tree);

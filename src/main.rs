@@ -34,6 +34,9 @@ use factotum::executor::execution_strategy::*;
 use colored::*;
 use std::time::Duration;
 use std::process::Command;
+use std::fs::File;
+use std::io::Write;
+use std::fs::OpenOptions;
 
 mod factotum;
 
@@ -48,23 +51,29 @@ Factotum.
 Usage:
   factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run]
   factotum validate <factfile>
+  factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite]
   factotum (-h | --help)
 
 Options:
-  -h --help             Show this screen.
-  --start=<start_task>  Begin at specified task.
-  --env=<env>           Supply JSON to define mustache variables in Factfile.
-  --dry-run             Pretend to execute a Factfile, showing the commands that would be executed. Can be used with other options.
+  -h --help                 Show this screen.
+  --start=<start_task>      Begin at specified task.
+  --env=<env>               Supply JSON to define mustache variables in Factfile.
+  --dry-run                 Pretend to execute a Factfile, showing the commands that would be executed. Can be used with other options.
+  --output=<output_file>    File to print output to. Used with `dot`.
+  --overwrite               Overwrite the output file if it exists.
 ";
 
 #[derive(Debug, RustcDecodable)]
 struct Args {
     flag_start: Option<String>,
     flag_env: Option<String>,
+    flag_output: Option<String>,
+    flag_overwrite: bool,
     flag_dry_run: bool,
     arg_factfile: String,
     cmd_run: bool,
-    cmd_validate: bool
+    cmd_validate: bool,
+    cmd_dot: bool
 }
 
 // macro to simplify printing to stderr
@@ -228,6 +237,18 @@ fn validate_start_task(job: &Factfile, start_task:&str) -> Result<(), &'static s
         }   
 }
 
+fn dot(factfile:&str, start_from:Option<String>) -> Result<String,String> {
+    let ff = try!(factotum::parser::parse(factfile, None, OverrideResultMappings::None));
+    if let Some(ref start) = start_from {
+        match ff.can_job_run_from_task(&start) {
+            Ok(is_good) => if !is_good { return Err("the job cannot be started here.".to_string()) },
+            Err(msg) => return Err(msg.to_string())
+        }   
+    }
+
+    Ok(ff.as_dotfile(start_from))
+}
+
 fn validate(factfile:&str, env:Option<String>) -> Result<String, String> {
     match factotum::parser::parse(factfile, env, OverrideResultMappings::None) {
         Ok(_) => Ok(format!("'{}' is a valid Factfile!", factfile).green().to_string()),
@@ -343,6 +364,21 @@ fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, st
     }
 }
 
+fn write_to_file(filename:&str, contents:&str, overwrite:bool) -> Result<(),String> {
+    let mut f = match OpenOptions::new()
+                    .write(true)
+                    .create_new(!overwrite)
+                    .open(filename) {
+        Ok(f) => f,
+        Err(io) => return Err(format!("couldn't create file '{}' ({})", filename, io))        
+    };
+
+    match f.write_all(contents.as_bytes()) {
+        Ok(_) =>  Ok(()),
+        Err(msg) => Err(format!("couldn't write to file '{}' ({})", filename, msg))
+    }   
+}
+
 fn get_log_config() -> Result<log4rs::config::Config, log4rs::config::Errors> {
     let file_appender = log4rs::appender::FileAppender::builder(".factotum/factotum.log").build();
     let root = log4rs::config::Root::builder(log::LogLevelFilter::Info)
@@ -390,9 +426,63 @@ fn factotum() -> i32 {
                 PROC_PARSE_ERROR
             }
         }
+    } else if args.cmd_dot {
+        match dot(&args.arg_factfile, args.flag_start) {
+            Ok(dot) => { 
+                if let Some(output_file) = args.flag_output {
+                    match write_to_file(&output_file, &dot, args.flag_overwrite) {
+                        Ok(_) => {
+                            println!("{}", "File written successfully".green());
+                            PROC_SUCCESS
+                        },
+                        Err(m) => {
+                            print_err!("{}{}", "Error: ".red(), m.red());
+                            PROC_OTHER_ERROR
+                        }                        
+                    }
+                } else {
+                    print!("{}",dot);  
+                    PROC_SUCCESS
+                }
+            }
+            Err(msg) => {
+                print_err!("{} {}", "Error:".red(), msg.red());
+                PROC_OTHER_ERROR
+            }
+        }
     } else {
         unreachable!("Unknown subcommand!")
     }
+}
+
+#[test]
+fn test_write_to_file() {
+    use std::env;
+    use std::io::Read;
+
+    let test_file = "factotum-write-test.txt";
+    let mut dir = env::temp_dir();
+    dir.push(test_file);
+
+    let test_path = &str::replace(&format!("{:?}", dir.as_os_str()), "\"", "");
+    println!("test file path: {}", test_path);
+
+    fs::remove_file(test_path).ok();
+
+    assert!(match write_to_file(test_path, "helloworld", false) {
+        Ok(_) => true,
+        Err(msg) => panic!("Unexpected error: {}",msg)
+    });
+    assert!(write_to_file(test_path, "helloworld", false).is_err());
+    assert!(write_to_file(test_path, "helloworld all", true).is_ok());
+
+    let mut file = File::open(test_path).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    
+    assert_eq!(contents, "helloworld all");
+
+    assert!(fs::remove_file(test_path).is_ok());
 }
 
 #[test]
