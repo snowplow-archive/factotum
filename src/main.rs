@@ -45,6 +45,7 @@ const PROC_PARSE_ERROR: i32 = 1;
 const PROC_EXEC_ERROR: i32 = 2;
 const PROC_OTHER_ERROR: i32 = 3;
 
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const USAGE: &'static str = "
 Factotum.
 
@@ -53,9 +54,11 @@ Usage:
   factotum validate <factfile>
   factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite]
   factotum (-h | --help)
+  factotum (-v | --version)
 
 Options:
   -h --help                 Show this screen.
+  -v --version              Display the version of Factotum and exit.
   --start=<start_task>      Begin at specified task.
   --env=<env>               Supply JSON to define mustache variables in Factfile.
   --dry-run                 Pretend to execute a Factfile, showing the commands that would be executed. Can be used with other options.
@@ -71,6 +74,7 @@ struct Args {
     flag_overwrite: bool,
     flag_dry_run: bool,
     arg_factfile: String,
+    flag_version: bool,
     cmd_run: bool,
     cmd_validate: bool,
     cmd_dot: bool
@@ -408,6 +412,11 @@ fn factotum() -> i32 {
                             return PROC_OTHER_ERROR  
                         }
                     };
+    
+    if args.flag_version {
+        println!("Factotum version {}", VERSION);
+        return PROC_SUCCESS
+    }         
 
     if args.cmd_run {
         if !args.flag_dry_run {
