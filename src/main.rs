@@ -37,6 +37,7 @@ use std::process::Command;
 use std::fs::File;
 use std::io::Write;
 use std::fs::OpenOptions;
+use std::env;
 
 mod factotum;
 
@@ -50,11 +51,11 @@ const USAGE: &'static str = "
 Factotum.
 
 Usage:
-  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run]
-  factotum validate <factfile>
-  factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite]
-  factotum (-h | --help)
-  factotum (-v | --version)
+  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run] [--no-colour]
+  factotum validate <factfile> [--no-colour]
+  factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite] [--no-colour]
+  factotum (-h | --help) [--no-colour]
+  factotum (-v | --version) [--no-colour]
 
 Options:
   -h --help                 Show this screen.
@@ -64,6 +65,7 @@ Options:
   --dry-run                 Pretend to execute a Factfile, showing the commands that would be executed. Can be used with other options.
   --output=<output_file>    File to print output to. Used with `dot`.
   --overwrite               Overwrite the output file if it exists.
+  --no-colour               Turn off ANSI terminal colours/formatting in output.
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -73,6 +75,7 @@ struct Args {
     flag_output: Option<String>,
     flag_overwrite: bool,
     flag_dry_run: bool,
+    flag_no_colour: bool,
     arg_factfile: String,
     flag_version: bool,
     cmd_run: bool,
@@ -412,6 +415,10 @@ fn factotum() -> i32 {
                             return PROC_OTHER_ERROR  
                         }
                     };
+
+    if args.flag_no_colour {
+        env::set_var("CLICOLOR", "0");
+    }
     
     if args.flag_version {
         println!("Factotum version {}", VERSION);
