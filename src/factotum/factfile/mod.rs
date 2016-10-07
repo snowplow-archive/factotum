@@ -23,11 +23,12 @@ use factotum::sequencer;
 
 pub struct Factfile {
     pub name:String,
+    pub raw: String,
     dag: Dag<Task, ()>,
     root: NodeIndex
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug, PartialEq)]
 pub struct Task {
     pub name: String,
     pub depends_on: Vec<String>,
@@ -37,7 +38,7 @@ pub struct Task {
     pub on_result: OnResult
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug, PartialEq)]
 pub struct OnResult {
     pub terminate_job: Vec<i32>,
     pub continue_job: Vec<i32>
@@ -45,7 +46,7 @@ pub struct OnResult {
 
 impl Factfile {
 
-    pub fn new<S: Into<String>>(name:S) -> Factfile {
+    pub fn new<S: Into<String>>(raw:S, name:S) -> Factfile {
         let mut new_dag = Dag::<Task, ()>::new();
         let root_task = Task { name:"FactotumJob".to_string(),
                                depends_on: vec![],
@@ -54,7 +55,7 @@ impl Factfile {
                                arguments: vec![],
                                on_result: OnResult { terminate_job: vec![], continue_job: vec![] } };
         let parent = new_dag.add_node(root_task);
-        Factfile { name: name.into(), dag: new_dag, root:parent }
+        Factfile { name: name.into(), dag: new_dag, root:parent, raw: raw.into() }
     }
 
     pub fn as_dotfile(&self, start_task:Option<String>) -> String {

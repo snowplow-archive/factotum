@@ -9,4 +9,4 @@ else
     SUFFIX="_linux_x86_64"
 fi
 
-env RM_SUFFIX=${SUFFIX} release-manager --config deploy/tasks/release_config.yaml --make-version  --make-artifact --upload-artifact
+env RM_SUFFIX=${SUFFIX} release-manager --config .travis/deploy/tasks/release_config.yaml --make-version  --make-artifact --upload-artifact

@@ -20,6 +20,7 @@ use chrono::UTC;
 use std::time::{Instant, Duration};
 use chrono::DateTime;
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct RunResult {
    pub run_started: DateTime<UTC>,
    pub duration: Duration,

@@ -19,7 +19,7 @@ use factotum::executor::*;
 
 #[test]
 fn get_task_execution_list_good() {
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("N/A", "test");
     ff.add_task_obj(&make_task("apple",   &vec![]));
     ff.add_task_obj(&make_task("turnip",  &vec![]));
     ff.add_task_obj(&make_task("orange",  &vec!["apple"]));
@@ -58,7 +58,7 @@ fn get_task_execution_list_good() {
 
 #[test]
 fn get_task_execution_list_good_reduced() {
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("N/A","test");
     ff.add_task_obj(&make_task("apple",   &vec![]));
     ff.add_task_obj(&make_task("turnip",  &vec![]));
     ff.add_task_obj(&make_task("orange",  &vec!["apple"]));
@@ -77,6 +77,286 @@ fn get_formatted_args() {
                                               "world".to_string(), 
                                               "abc abc".to_string()]);
     assert_eq!(args_list, "echo \"hello\" \"world\" \"abc abc\"");
+}
+
+#[test]
+fn get_task_snapshot_clones() {
+
+    use factotum::executor::task_list::*;
+    use factotum::executor::execution_strategy::*;
+    use chrono::UTC;
+    use chrono::duration::Duration;
+
+    let mut ff = Factfile::new("N/A","test");
+    ff.add_task_obj(&make_task("apple",   &vec![]));
+    ff.add_task_obj(&make_task("turnip",  &vec!["apple"]));
+
+    let mut tl = get_task_execution_list(&ff, None);
+
+    println!("{:?}", tl);
+
+    tl.tasks[0][0].state = State::SUCCESS;
+    tl.tasks[0][0].run_result = Some(RunResult {
+                                                 return_code: 0,
+                                                 stderr: Some("hello world".to_string()),
+                                                 stdout: Some("hello world".to_string()),
+                                                 duration: Duration::seconds(0).to_std().ok().unwrap(),
+                                                 run_started: UTC::now(),
+                                                 task_execution_error: None
+                                               } );
+
+    let snapshot = get_task_snapshot(&tl);
+
+    assert_eq!(snapshot.len(), 2);
+
+    assert_eq!(snapshot[0].state, State::SUCCESS);
+    assert_eq!(snapshot[0].name, "apple");
+    assert_eq!(snapshot[0].run_result, tl.tasks[0][0].run_result);
+    assert_eq!(&snapshot[0].task_spec, tl.tasks[0][0].task_spec);
+
+    assert_eq!(snapshot[1].state, State::WAITING);
+    assert_eq!(snapshot[1].name, "turnip");
+    assert_eq!(snapshot[1].run_result, None);
+    assert_eq!(&snapshot[1].task_spec, tl.tasks[1][0].task_spec);
+
+}
+
+#[test]
+fn execute_sends_started_msg() {
+    use factotum::executor::execution_strategy::execute_simulation;
+    use factotum::executor::task_list::State;
+    use std::thread;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let mut ff = Factfile::new("N/A","test");
+    ff.add_task_obj(&make_task("apple",   &vec![]));
+    ff.add_task_obj(&make_task("turnip",  &vec![]));
+    ff.add_task_obj(&make_task("orange",  &vec!["apple"]));
+    ff.add_task_obj(&make_task("egg",     &vec!["apple"]));
+    ff.add_task_obj(&make_task("potato",  &vec!["apple", "egg"]));
+    ff.add_task_obj(&make_task("chicken", &vec!["potato","orange"]));
+
+    let task_count_in_factfile = 6;
+
+    let (tx,rx) = mpsc::channel::<ExecutionState>();
+
+    execute_factfile(&ff, None, execution_strategy::execute_simulation, Some(tx.clone()));
+
+    let expected_starting = rx.recv_timeout(Duration::from_millis(300)).unwrap();
+
+    match expected_starting {
+        ExecutionState::STARTED(ts) => {
+            assert!(ts.iter().all(|t| t.state == State::WAITING));
+            assert_eq!(ts.len(), task_count_in_factfile);
+        },
+        _ => panic!("Failed! Didn't receive the correct event type")
+    }
+}
+
+#[test]
+fn execute_sends_running_messages() {
+    use factotum::executor::task_list::State;
+    use std::sync::mpsc;
+    use std::time::Duration;
+    use factotum::factfile::{Task as FactfileTask};
+
+    let mut ff = Factfile::new("N/A","test");
+
+    let tasks:Vec<FactfileTask> = vec![
+                            make_task("apple",   &vec![]),
+                            make_task("turnip",  &vec![]),
+                            make_task("orange",  &vec!["apple"]),
+                            make_task("egg",     &vec!["apple"]),
+                            make_task("potato",  &vec!["apple", "egg"]),
+                            make_task("chicken", &vec!["potato","orange"])
+                        ];
+
+    for mut task in tasks.into_iter() {
+        task.on_result.continue_job.push(0);
+        ff.add_task_obj(&task);
+    }
+
+    let task_count_in_factfile = 6;
+
+    let (tx,rx) = mpsc::channel::<ExecutionState>();
+
+    let expected_running_message_count = get_task_execution_list(&ff, None).tasks.len();
+    let expected_completed_message_count = task_count_in_factfile;
+    let count_starting_msg = 1;
+    let count_done_msg = 1;
+
+    let total_expected_task_updates = count_starting_msg + count_done_msg + expected_running_message_count + expected_completed_message_count;    
+
+    execute_factfile(&ff, None, execution_strategy::execute_simulation, Some(tx.clone()));
+
+    println!("Expecting {} messages..", total_expected_task_updates);
+
+    for i in 1..total_expected_task_updates {
+        let new_msg = rx.recv_timeout(Duration::from_millis(300)).unwrap();
+
+        println!("Received message: ");
+        print!("***\n{:?}\n***\n", new_msg);
+
+        if i == 1 {
+            assert!(match new_msg { 
+                        ExecutionState::STARTED(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::WAITING));
+                            true
+                        },
+                        _ => false })
+        } else if i == total_expected_task_updates {
+            assert!(match new_msg { 
+                        ExecutionState::FINISHED(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::SUCCESS));
+                            true
+                         },
+                        _ => false })
+        } else if i > 0 && i < total_expected_task_updates {
+            assert!(match new_msg { 
+                        ExecutionState::RUNNING(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::SUCCESS || t.state == State::WAITING || t.state == State::RUNNING));
+                            true
+                        },
+                        _ => false })
+        } else if i > total_expected_task_updates {
+            panic!("Too many messages received")
+        } else {
+            unreachable!("Uncaught message");
+        }
+    } 
+}
+
+#[test]
+fn execute_sends_failed_skipped_messages() {
+    use factotum::executor::task_list::State;
+    use std::sync::mpsc;
+    use std::time::Duration;
+    use factotum::factfile::{Task as FactfileTask};
+
+    let mut ff = Factfile::new("N/A","test");
+
+    let tasks:Vec<FactfileTask> = vec![
+                            make_task("apple",   &vec![]),
+                            make_task("turnip",  &vec!["apple"])
+                        ];
+
+    for mut task in tasks.into_iter() {
+        task.on_result.continue_job.push(1);
+        ff.add_task_obj(&task);
+    }
+
+    let (tx,rx) = mpsc::channel::<ExecutionState>();
+
+    execute_factfile(&ff, None, execution_strategy::execute_simulation, Some(tx.clone()));
+
+    for i in 1..5 {
+        let new_msg = rx.recv_timeout(Duration::from_millis(300)).unwrap();
+
+        println!("Received message: ");
+        print!("***\n{:?}\n***\n", new_msg);
+
+        if i == 1 {
+            assert!(match new_msg { 
+                        ExecutionState::STARTED(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::WAITING));
+                            true
+                        },
+                        _ => false })
+        } else if i == 4 {
+            assert!(match new_msg { 
+                        ExecutionState::FINISHED(tasks) => {
+                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::FAILED(_) => true, _ => false } );
+                            assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state { State::SKIPPED(_) => true, _ => false } );
+                            true
+                         },
+                        _ => false })
+        } else if i == 3 { // it should send a message saying apple failed
+            assert!(match new_msg { 
+                        ExecutionState::RUNNING(tasks) => {
+                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::FAILED(_) => true, _ => false  });
+                            true
+                        },
+                        _ => false })
+        } else if i == 2 { // it should start running task "apple" here which will fail
+            assert!(match new_msg { 
+                        ExecutionState::RUNNING(tasks) => {
+                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::RUNNING);
+                            true
+                        },
+                        _ => false })
+        } else {
+            unreachable!("Uncaught message");
+        }
+    } 
+}
+
+#[test]
+fn execute_sends_noop_skipped_messages() {
+    use factotum::executor::task_list::State;
+    use std::sync::mpsc;
+    use std::time::Duration;
+    use factotum::factfile::{Task as FactfileTask};
+
+    let mut ff = Factfile::new("N/A","test");
+
+    let tasks:Vec<FactfileTask> = vec![
+                            make_task("apple",   &vec![]),
+                            make_task("turnip",  &vec!["apple"]),
+                            make_task("egg",  &vec!["turnip"])
+                        ];
+
+    for mut task in tasks.into_iter() {
+        task.on_result.terminate_job.push(0);
+        ff.add_task_obj(&task);
+    }
+
+    let (tx,rx) = mpsc::channel::<ExecutionState>();
+
+    execute_factfile(&ff, None, execution_strategy::execute_simulation, Some(tx.clone()));
+
+    for i in 1..5 {
+        let new_msg = rx.recv_timeout(Duration::from_millis(300)).unwrap();
+
+        println!("Received message: ");
+        print!("***\n{:?}\n***\n", new_msg);
+
+        if i == 1 {
+            assert!(match new_msg { 
+                        ExecutionState::STARTED(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::WAITING));
+                            true
+                        },
+                        _ => false })
+        } else if i == 4 {
+            assert!(match new_msg { 
+                        ExecutionState::FINISHED(tasks) => {
+                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::SUCCESS_NOOP => true, _ => false } );
+                            assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state { State::SKIPPED(_) => true, _ => false } );
+                            assert!(match tasks.iter().find(|t| t.name == "egg").unwrap().state { State::SKIPPED(_) => true, _ => false } );
+                            true
+                         },
+                        _ => false })
+        } else if i == 3 { // task apple should noop
+            assert!(match new_msg { 
+                        ExecutionState::RUNNING(tasks) => {
+                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::SUCCESS_NOOP);
+                            assert!(tasks.iter().find(|t| t.name == "turnip").unwrap().state == State::WAITING);
+                            assert!(tasks.iter().find(|t| t.name == "egg").unwrap().state == State::WAITING);
+                            true
+                        },
+                        _ => false })
+        } else if i == 2 { // it should start running task "apple" here which will cause a noop
+            assert!(match new_msg { 
+                        ExecutionState::RUNNING(tasks) => {
+                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::RUNNING);
+                            true
+                        },
+                        _ => false })
+        } else {
+            unreachable!("Uncaught message");
+        }
+    } 
 }
 
 // todo write test for rejecting non "shell" execution types

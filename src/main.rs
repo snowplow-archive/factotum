@@ -22,6 +22,10 @@ extern crate rustc_serialize;
 extern crate valico;
 extern crate colored;
 extern crate chrono;
+extern crate rand;
+extern crate crypto;
+extern crate uuid;
+extern crate hyper;
 
 use docopt::Docopt;
 use std::fs;
@@ -31,6 +35,10 @@ use factotum::factfile::{Task as FactfileTask};
 use factotum::parser::OverrideResultMappings;
 use factotum::parser::TaskReturnCodeMapping;
 use factotum::executor::execution_strategy::*;
+use factotum::webhook::Webhook;
+use factotum::webhook::jobcontext;
+use factotum::executor::ExecutionState;
+use factotum::webhook;
 use colored::*;
 use std::time::Duration;
 use std::process::Command;
@@ -38,6 +46,8 @@ use std::fs::File;
 use std::io::Write;
 use std::fs::OpenOptions;
 use std::env;
+use hyper::Url;
+use std::sync::mpsc;
 
 mod factotum;
 
@@ -51,7 +61,7 @@ const USAGE: &'static str = "
 Factotum.
 
 Usage:
-  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run] [--no-colour]
+  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run] [--no-colour] [--webhook=<url>]
   factotum validate <factfile> [--no-colour]
   factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite] [--no-colour]
   factotum (-h | --help) [--no-colour]
@@ -66,6 +76,7 @@ Options:
   --output=<output_file>    File to print output to. Used with `dot`.
   --overwrite               Overwrite the output file if it exists.
   --no-colour               Turn off ANSI terminal colours/formatting in output.
+  --webhook=<url>           Post updates on job execution to the specified URL.
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -73,6 +84,7 @@ struct Args {
     flag_start: Option<String>,
     flag_env: Option<String>,
     flag_output: Option<String>,
+    flag_webhook: Option<String>,
     flag_overwrite: bool,
     flag_dry_run: bool,
     flag_no_colour: bool,
@@ -268,18 +280,20 @@ fn parse_file_and_simulate(factfile:&str, env:Option<String>, start_from:Option<
                                          env,
                                          start_from,
                                          factotum::executor::execution_strategy::execute_simulation,
-                                         OverrideResultMappings::All(TaskReturnCodeMapping { continue_job: vec![0], terminate_early: vec![] } ))
+                                         OverrideResultMappings::All(TaskReturnCodeMapping { continue_job: vec![0], terminate_early: vec![] } ),
+                                         None)
 }
 
-fn parse_file_and_execute(factfile:&str, env:Option<String>, start_from:Option<String>) -> i32 {
+fn parse_file_and_execute(factfile:&str, env:Option<String>, start_from:Option<String>, webhook_url:Option<String>) -> i32 {
     parse_file_and_execute_with_strategy(factfile, 
                                          env,
                                          start_from,
                                          factotum::executor::execution_strategy::execute_os,
-                                         OverrideResultMappings::None)
+                                         OverrideResultMappings::None,
+                                         webhook_url)
 }
 
-fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, start_from:Option<String>, strategy: F, override_result_map:OverrideResultMappings) -> i32
+fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, start_from:Option<String>, strategy: F, override_result_map:OverrideResultMappings, webhook_url:Option<String>) -> i32
                                            where F : Fn(&str, &mut Command) -> RunResult + Send + Sync + 'static + Copy { 
 
     match factotum::parser::parse(factfile, env, override_result_map) {
@@ -293,7 +307,17 @@ fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, st
                 }
             }
             
-            let job_res = factotum::executor::execute_factfile(&job, start_from, strategy);
+            let (maybe_updates_channel, maybe_join_handle) =  if webhook_url.is_some() {
+                let url = webhook_url.unwrap();
+                let mut wh = Webhook::new(job.name.clone(), job.raw.clone(), url);
+                let (tx,rx) = mpsc::channel::<ExecutionState>();
+                let join_handle = wh.connect_webhook(rx, Webhook::http_post, webhook::backoff_rand_1_minute);
+                (Some(tx), Some(join_handle))
+            } else {
+                (None, None)
+            };
+
+            let job_res = factotum::executor::execute_factfile(&job, start_from, strategy, maybe_updates_channel);
 
             let mut has_errors = false;
             let mut has_early_finish = false;
@@ -313,7 +337,7 @@ fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, st
 
             let normal_completion = !has_errors && !has_early_finish;
 
-            if normal_completion { 
+            let result = if normal_completion { 
                     let (stdout_summary, stderr_summary) = get_task_results_str(&tasks);
                     print!("{}", stdout_summary);
                     if !stderr_summary.trim_right().is_empty() {
@@ -328,7 +352,7 @@ fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, st
                         print_err!("{}", stderr_summary.trim_right());
                     }
                     let incomplete_tasks = tasks.iter()
-                                              .filter(|r| r.run_result.is_some() )
+                                              .filter(|r| !r.run_result.is_some() )
                                               .map(|r| format!("'{}'", r.name.cyan())) 
                                               .collect::<Vec<String>>()
                                               .join(", ");
@@ -361,8 +385,21 @@ fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, st
                                             .join(", ");   
                                             
                     println!("Factotum job executed abnormally as a task ({}) failed - the following tasks were not run: {}!", failed_tasks, incomplete_tasks);
-                    return PROC_EXEC_ERROR;
+                    PROC_EXEC_ERROR
+            };
+
+            if maybe_join_handle.is_some() {
+                print!("Waiting for webhook to finish sending events...");
+                let j = maybe_join_handle.unwrap();
+                let webhook_res = j.join().ok().unwrap();
+                println!("{}", " done!".green());
+
+                if webhook_res.events_received > webhook_res.success_count {
+                    println!("{}", "Warning: some events failed to send".red());
+                }
             }
+
+            result
         }, 
         Err(msg) => {
             println!("{}", msg);
@@ -384,6 +421,13 @@ fn write_to_file(filename:&str, contents:&str, overwrite:bool) -> Result<(),Stri
         Ok(_) =>  Ok(()),
         Err(msg) => Err(format!("couldn't write to file '{}' ({})", filename, msg))
     }   
+}
+
+fn is_valid_url(url:&str) -> Result<(), String> {
+    match Url::parse(url) {
+        Ok(_) => Ok(()),
+        Err(msg) => Err(format!("{}",msg))
+    } 
 }
 
 fn get_log_config() -> Result<log4rs::config::Config, log4rs::config::Errors> {
@@ -422,12 +466,24 @@ fn factotum() -> i32 {
     
     if args.flag_version {
         println!("Factotum version {}", VERSION);
-        return PROC_SUCCESS
+        return PROC_SUCCESS;
     }         
+
+    if args.flag_dry_run && args.flag_webhook.is_some() {
+        println!("{}", "Error: --webhook cannot be used with the --dry-run option".red());
+        return PROC_OTHER_ERROR;
+    }
+
+    if let Some(ref wh) = args.flag_webhook {
+        if let Err(msg) = is_valid_url(&wh) {
+            println!("{}", format!("Error: the specifed webhook URL \"{}\" is invalid. Reason: {}", wh, msg).red());
+            return PROC_OTHER_ERROR;
+        }
+    }
 
     if args.cmd_run {
         if !args.flag_dry_run {
-            parse_file_and_execute(&args.arg_factfile, args.flag_env, args.flag_start)
+            parse_file_and_execute(&args.arg_factfile, args.flag_env, args.flag_start, args.flag_webhook)
         } else {
             parse_file_and_simulate(&args.arg_factfile, args.flag_env, args.flag_start)
         }
@@ -468,6 +524,19 @@ fn factotum() -> i32 {
         }
     } else {
         unreachable!("Unknown subcommand!")
+    }
+}
+
+#[test]
+fn test_is_valid_url() {
+    match is_valid_url("http://") {
+        Ok(_) => panic!("http:// is not a valid url"),
+        Err(msg) => assert_eq!(msg, "empty host")
+    }
+
+    match is_valid_url("http://potato.com/") {
+        Ok(_) => (),
+        Err(msg) => panic!("http://potato.com/ is a valid url")
     }
 }
 
@@ -558,7 +627,7 @@ fn test_get_task_result_line_str() {
     let dt = UTC::now();    
     let sample_task = Task::<&FactfileTask> { 
         name: String::from("hello world"),
-        children: vec![],
+        // children: vec![],
         state: State::SUCCESS,
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
@@ -585,7 +654,7 @@ fn test_get_task_result_line_str() {
     // (was started ok)
     let sample_task_stdout = Task::<&FactfileTask> { 
         name: String::from("hello world"),
-        children: vec![],
+        // children: vec![],
         state: State::FAILED("Something about not being in continue job".to_string()),
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                   depends_on: vec![],
@@ -610,7 +679,7 @@ fn test_get_task_result_line_str() {
     // skipped task (previous failure/noop)
     let task_skipped = Task::<&FactfileTask> { 
         name: String::from("skip"),
-        children: vec![],
+        // children: vec![],
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                   depends_on: vec![],
                                   executor: "".to_string(),
@@ -626,7 +695,7 @@ fn test_get_task_result_line_str() {
     
     let task_init_fail = Task::<&FactfileTask> { 
          name: String::from("init fail"),
-         children: vec![],
+        //  children: vec![],
          state: State::FAILED("bla".to_string()),
          task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
@@ -642,7 +711,7 @@ fn test_get_task_result_line_str() {
             
     let task_failure = Task::<&FactfileTask> { 
         name: String::from("fails"),
-        children: vec![],
+        // children: vec![],
         state: State::FAILED("bla".to_string()),
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
@@ -684,7 +753,7 @@ fn test_get_task_results_str_summary() {
 
     let task_one = Task::<&FactfileTask> { 
         name: String::from("hello world"),
-        children: vec![],
+        // children: vec![],
         state: State::SUCCESS,
         task_spec: &task_one_spec,
         run_result: Some(RunResult {
@@ -707,7 +776,7 @@ fn test_get_task_results_str_summary() {
 
    let task_two = Task::<&FactfileTask> { 
         name: String::from("hello world 2"),
-        children: vec![],
+        // children: vec![],
         state: State::SUCCESS,
         task_spec: &task_two_spec,
         run_result: Some(RunResult {
@@ -749,7 +818,7 @@ fn test_get_task_results_str_summary() {
 
 #[test]
 fn test_start_task_validation_not_present() {    
-    let mut factfile = Factfile::new("test");    
+    let mut factfile = Factfile::new("N/A","test");    
 
     match validate_start_task(&factfile, "something") {
         Err(r) => assert_eq!(r, "the task specified could not be found"),
@@ -767,7 +836,7 @@ fn test_start_task_cycles() {
     
     use factotum::factfile::*;
     
-    let mut factfile = Factfile::new("test");       
+    let mut factfile = Factfile::new("N/A","test");       
     
     let task_a = Task { name: "a".to_string(),
                         depends_on: vec![],

@@ -6,7 +6,7 @@
             {
                 "name": "is-candidate-arch",
                 "executor": "shell",
-                "command": "deploy/tasks/check_release.rb",
+                "command": ".travis/deploy/tasks/check_release.rb",
                 "arguments": [],
                 "dependsOn": [],
                 "onResult": {
@@ -17,7 +17,7 @@
             {
                 "name": "provision-release-manager",
                 "executor": "shell",
-                "command": "deploy/tasks/provision.sh",
+                "command": ".travis/deploy/tasks/provision.sh",
                 "arguments": [],
                 "dependsOn": [ "is-candidate-arch" ],
                 "onResult": {
@@ -28,8 +28,8 @@
             {
                 "name": "build-release-artifact",
                 "executor": "shell",
-                "command": "cargo",
-                "arguments": [ "build", "--release" ],
+                "command": ".travis/build.sh",
+                "arguments": [ "--release" ],
                 "dependsOn": [ "is-candidate-arch" ],
                 "onResult": {
                     "terminateJobWithSuccess": [],
@@ -39,7 +39,7 @@
             {
                 "name": "ship-release-artifact",
                 "executor": "shell",
-                "command": "deploy/tasks/ship_release.sh",
+                "command": ".travis/deploy/tasks/ship_release.sh",
                 "arguments": [],
                 "dependsOn": [ "build-release-artifact" ],
                 "onResult": {

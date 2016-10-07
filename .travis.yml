@@ -9,9 +9,12 @@ os:
 matrix:
   allow_failures:
   - rust: nightly
+script: 
+  - $TRAVIS_BUILD_DIR/.travis/build.sh
 deploy:
+  skip_cleanup: true
   provider: script
-  script: cargo run --quiet -- run deploy/deploy.factfile
+  script: ./target/debug/factotum run .travis/deploy/deploy.factfile
   on:
     tags: true
 env:
