@@ -21,16 +21,17 @@ use factotum::executor::execution_strategy::RunResult;
 #[derive(Clone, PartialEq, Debug)]
 pub enum State {
     WAITING,
+    RUNNING,
     SUCCESS,
     SUCCESS_NOOP,
     FAILED(String),
     SKIPPED(String)
 }
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct Task<T> {
     pub name: String,
     pub state: State,
-    pub children: Vec<String>,
     pub task_spec: T,
     pub run_result: Option<RunResult>    
 }
@@ -40,7 +41,6 @@ impl<T> Task<T> {
         Task {
             name: name.into(),
             state: State::WAITING,
-            children: vec![],
             task_spec: task_spec,
             run_result: None 
         }
@@ -49,6 +49,7 @@ impl<T> Task<T> {
 
 pub type TaskGroup<T> = Vec<Task<T>>;
 
+#[derive(Clone, Debug)]
 pub struct TaskList<T> {
     pub tasks: Vec<TaskGroup<T>>,
     edges: HashMap<String,Vec<String>>

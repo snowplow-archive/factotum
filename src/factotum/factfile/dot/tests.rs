@@ -47,7 +47,7 @@ fn generate_graphviz_dot_good() {
 
     let example = file_contents(&resource("dot/example_apples.dot"));
 
-    let mut ff = Factfile::new("Sample job");
+    let mut ff = Factfile::new("N/A", "Sample job");
     ff.add_task_obj(&make_task("apple",   &vec![]));
     ff.add_task_obj(&make_task("turnip",  &vec![]));
     ff.add_task_obj(&make_task("orange",  &vec!["apple"]));
@@ -68,7 +68,7 @@ fn generate_graphviz_dot_good() {
 fn generate_graphviz_dot_good_poly() {
     let example = file_contents(&resource("dot/example_apples_poly.dot"));
 
-    let mut ff = Factfile::new("Sample job #2");
+    let mut ff = Factfile::new("N/A", "Sample job #2");
     ff.add_task_obj(&make_task("apple",   &vec![]));
     ff.add_task_obj(&make_task("turnip",  &vec![]));
     ff.add_task_obj(&make_task("orange",  &vec!["apple"]));
@@ -92,7 +92,7 @@ fn generate_graphviz_dot_good_poly() {
 fn generate_graphviz_dot_good_short() {
     let example = file_contents(&resource("dot/example_reduced.dot"));
 
-    let mut ff = Factfile::new("Sample job #3 (reduced run)");
+    let mut ff = Factfile::new("N/A", "Sample job #3 (reduced run)");
     ff.add_task_obj(&make_task("apple",   &vec![]));
     ff.add_task_obj(&make_task("turnip",  &vec![]));
     ff.add_task_obj(&make_task("orange",  &vec!["apple"]));

@@ -17,6 +17,7 @@ pub mod factfile;
 pub mod parser;
 pub mod executor;
 pub mod sequencer;
+pub mod webhook;
 
 #[cfg(test)]
 mod tests;

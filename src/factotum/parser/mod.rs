@@ -16,7 +16,7 @@
 #[cfg(test)]
 mod tests;
 mod templater;
-mod schemavalidator;
+pub mod schemavalidator;
 
 use std::io::prelude::*;
 use std::fs::File;
@@ -110,7 +110,7 @@ struct FactfileTaskResultFormat {
 fn parse_valid_json(file:&str, conf:Option<Json>, overrides:OverrideResultMappings) -> Result<factfile::Factfile, String> {
     let schema: SelfDescribingJson = try!(json::decode(file).map_err(|e| e.to_string())); 
     let decoded_json = schema.data;
-    let mut ff = factfile::Factfile::new(decoded_json.name);
+    let mut ff = factfile::Factfile::new(file, &decoded_json.name);
 
     for file_task in decoded_json.tasks.iter() { // TODO errs in here - ? add task should Result not panic! 
         info!("adding task '{}'", file_task.name);

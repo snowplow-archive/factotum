@@ -13,3 +13,7 @@ valico = "0.8.2"
 chrono = "0.2"
 colored = "1.2"
 mustache = "*"
+rand = "0.3"
+rust-crypto = "^0.2"
+uuid = { version = "0.2", features = ["v4"] }
+hyper = "0.9"

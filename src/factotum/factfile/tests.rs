@@ -20,7 +20,7 @@ use factotum::tests::make_task;
 #[test]
 #[should_panic(expected = "Key 'hello' already exists!")]
 fn duplicate_names_panics() {
-    let mut f = Factfile::new("test");
+    let mut f = Factfile::new("none", "test");
     let dup_task = make_task("hello", &vec![]);
     f.add_task_obj(&dup_task);
     f.add_task_obj(&dup_task);
@@ -30,20 +30,20 @@ fn duplicate_names_panics() {
 #[should_panic(expected = "A task cannot depend on itself")]
 fn job_depend_itself() {
     let self_depending_task = make_task("hello", &vec!["hello"]);
-    Factfile::new("test").add_task_obj(&self_depending_task);
+    Factfile::new("none","test").add_task_obj(&self_depending_task);
 }
 
 #[test]
 #[should_panic(expected = "A task must have it's dependencies already defined")]
 fn task_depend_existing_tasks_only() {
     let non_existing_task = make_task("mytask", &vec!["undefined as yet"]);
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("none", "test");
     ff.add_task_obj(&non_existing_task);
 }
 
 #[test]
 fn a_complicated_tree_works() {
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("none", "test");
     ff.add_task_obj(&make_task("apple",   &vec![]));
     ff.add_task_obj(&make_task("turnip",  &vec![]));
     ff.add_task_obj(&make_task("orange",  &vec!["apple"]));
@@ -73,7 +73,7 @@ fn a_complicated_tree_works() {
 
 #[test]
 fn heirachy_only_last() {
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("none", "test");
     ff.add_task_obj(&make_task("a",      &vec![]));
     ff.add_task_obj(&make_task("b",      &vec!["a"]));
     ff.add_task_obj(&make_task("c",      &vec!["a"]));
@@ -103,7 +103,7 @@ fn heirachy_only_last() {
 
 #[test]
 fn no_cycles_ok() {
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("none", "test");
     ff.add_task_obj(&make_task("hello",       &vec![]));
     ff.add_task_obj(&make_task("hello_world", &vec!["hello"]));
     ff.add_task_obj(&make_task("say_hello",   &vec!["hello"]));
@@ -129,7 +129,7 @@ fn no_cycles_ok() {
 #[test]
 fn can_job_run_from_task_name_not_present_in_dag() {
     // invalid task name
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("none", "test");
     ff.add_task_obj(&make_task("a",      &vec![]));
     ff.add_task_obj(&make_task("b",      &vec!["a"]));
     ff.add_task_obj(&make_task("c",      &vec!["a"]));
@@ -143,7 +143,7 @@ fn can_job_run_from_task_name_not_present_in_dag() {
 
 #[test]
 fn can_job_run_from_task_name() {
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("none", "test");
     
     ff.add_task_obj(&make_task("a",      &vec![]));
     ff.add_task_obj(&make_task("b",      &vec!["a"]));
@@ -164,7 +164,7 @@ fn can_job_run_from_task_name() {
 #[test] 
 #[should_panic(expected = "cannot start from potato - task does not exist")]
 fn running_jobs_from_non_existing_task() {
-    let ff = Factfile::new("test");    
+    let ff = Factfile::new("none","test");    
     match ff.get_tasks_in_order_from("potato") {
         _ => unreachable!("task doesn't exist, this should panic")
     }
@@ -172,7 +172,7 @@ fn running_jobs_from_non_existing_task() {
 
 #[test] 
 fn running_jobs_from_existing_task() {
-    let mut ff = Factfile::new("test");
+    let mut ff = Factfile::new("none", "test");
     ff.add_task_obj(&make_task("a",      &vec![]));
     ff.add_task_obj(&make_task("b",      &vec!["a"]));
     ff.add_task_obj(&make_task("c",      &vec!["b"]));

@@ -104,6 +104,9 @@ fn valid_generates_factfile() {
         let task_three = tasks.get(2).unwrap().get(0).unwrap();
         assert_eq!(task_three.name, "SQL Runner");
         assert_eq!(task_three.depends_on, vec!["StorageLoader"]);
+
+        let expected_raw = include_str!("../../../tests/resources/example_ok.factfile");
+        assert_eq!(factfile.raw, expected_raw);
     } else {
         panic!("valid factfile example_ok.factfile should have parsed but didn't");
     }
