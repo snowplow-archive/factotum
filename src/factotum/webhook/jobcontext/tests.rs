@@ -16,7 +16,6 @@
 use super::*;
 
 use chrono::UTC;
-use chrono::DateTime;
 use rustc_serialize::base64::{ToBase64, MIME};
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;

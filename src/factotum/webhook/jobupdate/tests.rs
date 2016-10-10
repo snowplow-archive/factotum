@@ -15,17 +15,15 @@
 
 use super::*;
 use factotum::parser::schemavalidator;
-use factotum::executor::{ExecutionState, TaskSnapshot};
-use rustc_serialize::json;
+use factotum::executor::ExecutionState;
 use factotum::webhook::jobcontext::JobContext;
 use chrono::UTC;
-use chrono::Duration;
 
 #[test]
 fn to_json_valid_against_schema() {
      let schema = include_str!("../../../../tests/resources/job_update/json_schema_self_desc.json");
      let context = JobContext::new("hello", "world");
-     let job_update = JobUpdate::new(&context, &ExecutionState::FINISHED(vec![]));
+     let job_update = JobUpdate::new(&context, &ExecutionState::Finished(vec![]));
      let json_wrapped = job_update.as_self_desc_json();  
      let result = schemavalidator::validate_schema(&json_wrapped, schema);
      match result {
@@ -36,14 +34,14 @@ fn to_json_valid_against_schema() {
 
 #[test]
 fn to_task_states_empty() {
-    let empty = ExecutionState::FINISHED(vec![]);
+    let empty = ExecutionState::Finished(vec![]);
     assert!(JobUpdate::to_task_states(&empty).is_empty());
 }
 
 #[test]
 fn headers_correct() {
     let context = JobContext::new("hello", "world");
-    let job_update = JobUpdate::new(&context, &ExecutionState::FINISHED(vec![]));
+    let job_update = JobUpdate::new(&context, &ExecutionState::Finished(vec![]));
 
     assert_eq!(context.job_reference, job_update.jobReference);
     assert_eq!(context.run_reference, job_update.runReference);
@@ -58,7 +56,6 @@ fn headers_correct() {
 
 #[test]
 fn task_states_converted_no_run_data() {
-    use factotum::executor::task_list::State;
     use factotum::executor::task_list::Task;
     use factotum::tests::make_task;
 
@@ -66,12 +63,12 @@ fn task_states_converted_no_run_data() {
         Task::new("chocolate", make_task("hello", &vec![]))
     ];
 
-    let start_sample = ExecutionState::STARTED(example_tasks);
+    let start_sample = ExecutionState::Started(example_tasks);
 
     let context = JobContext::new("hello", "world");
     let job_update = JobUpdate::new(&context, &start_sample);
 
-    let expectedState = TaskUpdate {
+    let expected_state = TaskUpdate {
         taskName: "chocolate".to_string(),
         state: TaskRunState::WAITING,
         started: None,
@@ -83,7 +80,7 @@ fn task_states_converted_no_run_data() {
     };
 
     assert!(job_update.taskStates.is_empty()==false);
-    assert_eq!(job_update.taskStates[0], expectedState);
+    assert_eq!(job_update.taskStates[0], expected_state);
 }
 
 #[test]
@@ -101,7 +98,7 @@ fn task_states_converted_with_run_data() {
 
     let now = UTC::now();
 
-    example_tasks[0].state = State::FAILED("broken".to_string());
+    example_tasks[0].state = State::Failed("broken".to_string());
     example_tasks[0].run_result = Some(RunResult {
         return_code: -1,
         run_started: now.clone(),
@@ -111,7 +108,7 @@ fn task_states_converted_with_run_data() {
         duration: Duration::seconds(0).to_std().unwrap()
     });
 
-    example_tasks[1].state = State::SUCCESS;
+    example_tasks[1].state = State::Success;
     example_tasks[1].run_result = Some(RunResult {
         return_code: 0,
         run_started: now.clone(),
@@ -121,12 +118,12 @@ fn task_states_converted_with_run_data() {
         duration: Duration::seconds(1).to_std().unwrap()
     });
 
-    let start_sample = ExecutionState::STARTED(example_tasks);
+    let start_sample = ExecutionState::Started(example_tasks);
 
     let context = JobContext::new("hello", "world");
     let job_update = JobUpdate::new(&context, &start_sample);
 
-    let expectedStates = vec![
+    let expected_states = vec![
         TaskUpdate {
             taskName: "chocolate".to_string(),
             state: TaskRunState::FAILED,
@@ -150,6 +147,6 @@ fn task_states_converted_with_run_data() {
     ];
 
     assert!(job_update.taskStates.is_empty()==false);
-    assert_eq!(job_update.taskStates[0], expectedStates[0]);
-    assert_eq!(job_update.taskStates[1], expectedStates[1]);
+    assert_eq!(job_update.taskStates[0], expected_states[0]);
+    assert_eq!(job_update.taskStates[1], expected_states[1]);
 }

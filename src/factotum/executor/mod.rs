@@ -69,9 +69,9 @@ pub type TaskSnapshot = Vec<Task<FactfileTask>>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExecutionState {
-    STARTED(TaskSnapshot),
-    RUNNING(TaskSnapshot),
-    FINISHED(TaskSnapshot)    
+    Started(TaskSnapshot),
+    Running(TaskSnapshot),
+    Finished(TaskSnapshot)    
 }
 
 pub fn get_task_snapshot(tasklist: &TaskList<&FactfileTask>) -> TaskSnapshot {
@@ -93,7 +93,7 @@ pub fn execute_factfile<'a, F>(factfile:&'a Factfile, start_from:Option<String>,
 
    // notify the progress channel
    if let Some(ref send) = progress_channel {
-       send.send(ExecutionState::STARTED(get_task_snapshot(&tasklist))).unwrap();
+       send.send(ExecutionState::Started(get_task_snapshot(&tasklist))).unwrap();
    }
               
     for task_grp_idx in 0..tasklist.tasks.len() {
@@ -103,80 +103,97 @@ pub fn execute_factfile<'a, F>(factfile:&'a Factfile, start_from:Option<String>,
         {
             let ref mut task_group = tasklist.tasks[task_grp_idx];
             for (idx,task) in task_group.into_iter().enumerate() {
-                info!("Running task '{}'!", task.name);
-                task.state = State::RUNNING;
-                {
-                    let tx = tx.clone();
-                    let args = format_args(&task.task_spec.command, &task.task_spec.arguments);
-                    let task_name = task.name.to_string();
-                    
-                    thread::spawn(move || {
-                        let mut command = Command::new("sh");
-                        command.arg("-c");
-                        command.arg(args);
-                        let task_result = strategy(&task_name, &mut command);
-                        tx.send((idx, task_result)).unwrap();
-                    });  
-                }          
+
+                if task.state == State::Waiting {                
+                    info!("Running task '{}'!", task.name);
+                    task.state = State::Running;
+                    {
+                        let tx = tx.clone();
+                        let args = format_args(&task.task_spec.command, &task.task_spec.arguments);
+                        let task_name = task.name.to_string();
+                        
+                        thread::spawn(move || {
+                            let mut command = Command::new("sh");
+                            command.arg("-c");
+                            command.arg(args);
+                            let task_result = strategy(&task_name, &mut command);
+                            tx.send((idx, task_result)).unwrap();
+                        });  
+                    }     
+                } else {
+                    info!("Skipped task '{}'", task.name);
+                }
+
             }    
-        }
-        
-        if let Some(ref send) = progress_channel {
-            send.send(ExecutionState::RUNNING(get_task_snapshot(&tasklist))).unwrap();
-        }            
-        
-        let mut terminate_job_please = false; 
-        let mut task_failed = false;
-        
-        for _ in 0..tasklist.tasks[task_grp_idx].len() {                    
-            let (idx, task_result) = rx.recv().unwrap();                              
-            info!("'{}' returned {} in {:?}", tasklist.tasks[task_grp_idx][idx].name, task_result.return_code, task_result.duration); 
-                
-            {
-                let ref mut task_group = tasklist.tasks[task_grp_idx];
-                if task_group[idx].task_spec.on_result.terminate_job.contains(&task_result.return_code) {
+        }      
+
+        let expected_count = tasklist.tasks[task_grp_idx]
+                                     .iter()
+                                     .filter(|t| t.state == State::Running) 
+                                     .count();
+
+        if expected_count > 0 {
+
+            if let Some(ref send) = progress_channel {
+                send.send(ExecutionState::Running(get_task_snapshot(&tasklist))).unwrap();
+            }      
+      
+            for _ in 0..expected_count {                    
+                let (idx, task_result) = rx.recv().unwrap();                              
+                info!("'{}' returned {} in {:?}", tasklist.tasks[task_grp_idx][idx].name, task_result.return_code, task_result.duration); 
+                    
+                if tasklist.tasks[task_grp_idx][idx].task_spec.on_result.terminate_job.contains(&task_result.return_code) {
                     // if the return code is in the terminate early list, prune the sub-tree (set to skipped) return early term
-                    task_group[idx].state = State::SUCCESS_NOOP;
-                    terminate_job_please = true;
-                } else if task_group[idx].task_spec.on_result.continue_job.contains(&task_result.return_code) {
+                    tasklist.tasks[task_grp_idx][idx].state = State::SuccessNoop;
+                    let skip_list = tasklist.get_descendants(&tasklist.tasks[task_grp_idx][idx].name);
+                    for mut task in tasklist.tasks.iter_mut().flat_map(|tg| tg.iter_mut()) { // all the tasks
+                        if skip_list.contains(&task.name) {
+                            let skip_message = if let State::Skipped(ref msg) = task.state {
+                                format!("{}, the task '{}' requested early termination", msg, task.name)
+                            } else {
+                                format!("The task '{}' requested early termination", task.name)
+                            };
+                            task.state = State::Skipped(skip_message);
+                        }
+                    }
+                } else if tasklist.tasks[task_grp_idx][idx].task_spec.on_result.continue_job.contains(&task_result.return_code) {
                     // if the return code is in the continue list, return success
-                    task_group[idx].state = State::SUCCESS;
+                    tasklist.tasks[task_grp_idx][idx].state = State::Success;
                 } else {
                     // if the return code is not in either list, prune the sub-tree (set to skipped) and return error
-                    let expected_codes = task_group[idx].task_spec.on_result.continue_job.iter()
-                                                                            .map(|code| code.to_string())
-                                                                            .collect::<Vec<String>>()
-                                                                            .join(",");
+                    let expected_codes = tasklist.tasks[task_grp_idx][idx].task_spec.on_result.continue_job.iter()
+                                                                                    .map(|code| code.to_string())
+                                                                                    .collect::<Vec<String>>()
+                                                                                    .join(",");
                     let err_msg = format!("the task exited with a value not specified in continue_job - {} (task expects one of the following return codes to continue [{}])", 
                                         task_result.return_code,
                                         expected_codes);
-                    task_group[idx].state = State::FAILED(err_msg);
-                    task_failed = true;
+                    tasklist.tasks[task_grp_idx][idx].state = State::Failed(err_msg);
+                    let skip_list = tasklist.get_descendants(&tasklist.tasks[task_grp_idx][idx].name);
+                    for mut task in tasklist.tasks.iter_mut().flat_map(|tg| tg.iter_mut()) { // all the tasks
+                        if skip_list.contains(&task.name) {
+                            let skip_message = if let State::Skipped(ref msg) = task.state {
+                                format!("{}, the task '{}' failed", msg, task.name)
+                            } else {
+                                format!("The task '{}' failed", task.name)
+                            };
+                            task.state = State::Skipped(skip_message);
+                        }
+                    }
                 }
 
-                task_group[idx].run_result = Some(task_result);
+                tasklist.tasks[task_grp_idx][idx].run_result = Some(task_result);
+
+                if let Some(ref send) = progress_channel {
+                    send.send(ExecutionState::Running(get_task_snapshot(&tasklist))).unwrap();
+                }    
+
             }
-
-            if let Some(ref send) = progress_channel {
-                send.send(ExecutionState::RUNNING(get_task_snapshot(&tasklist))).unwrap();
-            }    
-
         }
-        
-        if terminate_job_please || task_failed {
-            break;
-        }
-
     }
 
     if let Some(ref send) = progress_channel {
-        let mut snapshot = get_task_snapshot(&tasklist);
-        for mut task in snapshot.iter_mut() {
-            if State::WAITING == task.state {
-                 task.state = State::SKIPPED("A prior failure or terminate request caused this task to be skipped".to_string());
-            } 
-        }
-        send.send(ExecutionState::FINISHED(snapshot)).unwrap();
+        send.send(ExecutionState::Finished(get_task_snapshot(&tasklist))).unwrap();
     }    
 
     tasklist 
