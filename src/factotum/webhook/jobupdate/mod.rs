@@ -21,7 +21,6 @@ static JOB_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.factot
 use factotum::executor::ExecutionState;
 use rustc_serialize::json;
 use super::jobcontext::JobContext;
-use chrono::DateTime;
 use chrono::UTC;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, PartialEq)]
@@ -42,6 +41,7 @@ pub enum TaskRunState {
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug, PartialEq)]
+#[allow(non_snake_case)]
 pub struct TaskUpdate {
     taskName: String,
     state: TaskRunState,
@@ -65,6 +65,7 @@ pub struct ApplicationContext {
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
+#[allow(non_snake_case)]
 pub struct JobUpdate {
     jobName: String,
     jobReference: String,
@@ -86,7 +87,7 @@ impl JobUpdate {
             runReference: context.run_reference.clone(),
             factfile: context.factfile.clone(),
             applicationContext: ApplicationContext { version: context.factotum_version.clone() },
-            runState: match *execution_state { ExecutionState::STARTED(_) => JobRunState::WAITING, ExecutionState::FINISHED(_) => JobRunState::COMPLETED, _ => JobRunState::RUNNING },
+            runState: match *execution_state { ExecutionState::Started(_) => JobRunState::WAITING, ExecutionState::Finished(_) => JobRunState::COMPLETED, _ => JobRunState::RUNNING },
             startTime: context.start_time.to_rfc3339(),
             runDuration: (UTC::now() - context.start_time).to_string(),
             taskStates: JobUpdate::to_task_states(execution_state)
@@ -107,21 +108,21 @@ impl JobUpdate {
         use chrono::duration::{Duration as ChronoDuration};
 
         let tasks = match *execution_state {
-            ExecutionState::RUNNING(ref t) => t,
-            ExecutionState::STARTED(ref t) => t,
-            ExecutionState::FINISHED(ref t) => t 
+            ExecutionState::Running(ref t) => t,
+            ExecutionState::Started(ref t) => t,
+            ExecutionState::Finished(ref t) => t 
         };
 
         tasks.iter()
              .map(|task| TaskUpdate {
                             taskName: task.name.clone(),
                             state: match task.state {
-                                State::WAITING => TaskRunState::WAITING,
-                                State::RUNNING => TaskRunState::RUNNING,
-                                State::SKIPPED(_) => TaskRunState::SKIPPED,
-                                State::SUCCESS => TaskRunState::COMPLETED,
-                                State::SUCCESS_NOOP => TaskRunState::COMPLETED,
-                                State::FAILED(_) => TaskRunState::FAILED
+                                State::Waiting => TaskRunState::WAITING,
+                                State::Running => TaskRunState::RUNNING,
+                                State::Skipped(_) => TaskRunState::SKIPPED,
+                                State::Success => TaskRunState::COMPLETED,
+                                State::SuccessNoop => TaskRunState::COMPLETED,
+                                State::Failed(_) => TaskRunState::FAILED
                             },
                             started: if let Some(ref r) = task.run_result {
                                 Some(r.run_started.to_rfc3339())

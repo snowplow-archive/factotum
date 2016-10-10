@@ -130,8 +130,6 @@ impl Webhook {
                G : Fn() -> Duration + Send + Sync + 'static {
 
          let endpoint = self.endpoint.clone();
-         let ff = self.factfile_json.clone();
-         let job_name = self.factfile_job_name.clone();
          let job_context = self.job_context.clone();
 
          thread::spawn(move || {
@@ -142,13 +140,12 @@ impl Webhook {
              let mut done = false;
              let mut events_recv = 0;
 
-
              while done == false {
 
                  let message = updates_channel.recv().unwrap();
                  events_recv += 1;
 
-                 if let ExecutionState::FINISHED(_) = message {
+                 if let ExecutionState::Finished(_) = message {
                      done=true;
                  } 
 

@@ -96,7 +96,7 @@ impl Factfile {
     }
     
     // this is used in tests
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn add_task_obj(&mut self, task:&Task) {
         self.add_task(&task.name,
                       &task.depends_on.iter().map(AsRef::as_ref).collect(),

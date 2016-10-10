@@ -95,7 +95,7 @@ fn get_task_snapshot_clones() {
 
     println!("{:?}", tl);
 
-    tl.tasks[0][0].state = State::SUCCESS;
+    tl.tasks[0][0].state = State::Success;
     tl.tasks[0][0].run_result = Some(RunResult {
                                                  return_code: 0,
                                                  stderr: Some("hello world".to_string()),
@@ -109,12 +109,12 @@ fn get_task_snapshot_clones() {
 
     assert_eq!(snapshot.len(), 2);
 
-    assert_eq!(snapshot[0].state, State::SUCCESS);
+    assert_eq!(snapshot[0].state, State::Success);
     assert_eq!(snapshot[0].name, "apple");
     assert_eq!(snapshot[0].run_result, tl.tasks[0][0].run_result);
     assert_eq!(&snapshot[0].task_spec, tl.tasks[0][0].task_spec);
 
-    assert_eq!(snapshot[1].state, State::WAITING);
+    assert_eq!(snapshot[1].state, State::Waiting);
     assert_eq!(snapshot[1].name, "turnip");
     assert_eq!(snapshot[1].run_result, None);
     assert_eq!(&snapshot[1].task_spec, tl.tasks[1][0].task_spec);
@@ -123,9 +123,7 @@ fn get_task_snapshot_clones() {
 
 #[test]
 fn execute_sends_started_msg() {
-    use factotum::executor::execution_strategy::execute_simulation;
     use factotum::executor::task_list::State;
-    use std::thread;
     use std::sync::mpsc;
     use std::time::Duration;
 
@@ -146,8 +144,8 @@ fn execute_sends_started_msg() {
     let expected_starting = rx.recv_timeout(Duration::from_millis(300)).unwrap();
 
     match expected_starting {
-        ExecutionState::STARTED(ts) => {
-            assert!(ts.iter().all(|t| t.state == State::WAITING));
+        ExecutionState::Started(ts) => {
+            assert!(ts.iter().all(|t| t.state == State::Waiting));
             assert_eq!(ts.len(), task_count_in_factfile);
         },
         _ => panic!("Failed! Didn't receive the correct event type")
@@ -200,22 +198,22 @@ fn execute_sends_running_messages() {
 
         if i == 1 {
             assert!(match new_msg { 
-                        ExecutionState::STARTED(tasks) => {
-                            assert!(tasks.iter().all(|t| t.state == State::WAITING));
+                        ExecutionState::Started(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::Waiting));
                             true
                         },
                         _ => false })
         } else if i == total_expected_task_updates {
             assert!(match new_msg { 
-                        ExecutionState::FINISHED(tasks) => {
-                            assert!(tasks.iter().all(|t| t.state == State::SUCCESS));
+                        ExecutionState::Finished(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::Success));
                             true
                          },
                         _ => false })
         } else if i > 0 && i < total_expected_task_updates {
             assert!(match new_msg { 
-                        ExecutionState::RUNNING(tasks) => {
-                            assert!(tasks.iter().all(|t| t.state == State::SUCCESS || t.state == State::WAITING || t.state == State::RUNNING));
+                        ExecutionState::Running(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::Success || t.state == State::Waiting || t.state == State::Running));
                             true
                         },
                         _ => false })
@@ -254,34 +252,35 @@ fn execute_sends_failed_skipped_messages() {
         let new_msg = rx.recv_timeout(Duration::from_millis(300)).unwrap();
 
         println!("Received message: ");
-        print!("***\n{:?}\n***\n", new_msg);
+        print!("***\n{}: {:?}\n***\n", i, new_msg);
 
         if i == 1 {
             assert!(match new_msg { 
-                        ExecutionState::STARTED(tasks) => {
-                            assert!(tasks.iter().all(|t| t.state == State::WAITING));
+                        ExecutionState::Started(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::Waiting));
                             true
                         },
                         _ => false })
         } else if i == 4 {
             assert!(match new_msg { 
-                        ExecutionState::FINISHED(tasks) => {
-                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::FAILED(_) => true, _ => false } );
-                            assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state { State::SKIPPED(_) => true, _ => false } );
+                        ExecutionState::Finished(tasks) => {
+                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::Failed(_) => true, _ => false } );
+                            assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state { State::Skipped(_) => true, _ => false } );
                             true
                          },
                         _ => false })
         } else if i == 3 { // it should send a message saying apple failed
             assert!(match new_msg { 
-                        ExecutionState::RUNNING(tasks) => {
-                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::FAILED(_) => true, _ => false  });
+                        ExecutionState::Running(tasks) => {
+                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::Failed(_) => true, _ => false  });
+                            assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state { State::Skipped(_) => true, _ => false });
                             true
                         },
                         _ => false })
         } else if i == 2 { // it should start running task "apple" here which will fail
             assert!(match new_msg { 
-                        ExecutionState::RUNNING(tasks) => {
-                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::RUNNING);
+                        ExecutionState::Running(tasks) => {
+                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::Running);
                             true
                         },
                         _ => false })
@@ -323,33 +322,33 @@ fn execute_sends_noop_skipped_messages() {
 
         if i == 1 {
             assert!(match new_msg { 
-                        ExecutionState::STARTED(tasks) => {
-                            assert!(tasks.iter().all(|t| t.state == State::WAITING));
+                        ExecutionState::Started(tasks) => {
+                            assert!(tasks.iter().all(|t| t.state == State::Waiting));
                             true
                         },
                         _ => false })
         } else if i == 4 {
             assert!(match new_msg { 
-                        ExecutionState::FINISHED(tasks) => {
-                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::SUCCESS_NOOP => true, _ => false } );
-                            assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state { State::SKIPPED(_) => true, _ => false } );
-                            assert!(match tasks.iter().find(|t| t.name == "egg").unwrap().state { State::SKIPPED(_) => true, _ => false } );
+                        ExecutionState::Finished(tasks) => {
+                            assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state { State::SuccessNoop => true, _ => false } );
+                            assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state { State::Skipped(_) => true, _ => false } );
+                            assert!(match tasks.iter().find(|t| t.name == "egg").unwrap().state { State::Skipped(_) => true, _ => false } );
                             true
                          },
                         _ => false })
         } else if i == 3 { // task apple should noop
             assert!(match new_msg { 
-                        ExecutionState::RUNNING(tasks) => {
-                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::SUCCESS_NOOP);
-                            assert!(tasks.iter().find(|t| t.name == "turnip").unwrap().state == State::WAITING);
-                            assert!(tasks.iter().find(|t| t.name == "egg").unwrap().state == State::WAITING);
+                        ExecutionState::Running(tasks) => {
+                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::SuccessNoop);
+                            assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state { State::Skipped(_) => true, _ => false });
+                            assert!(match tasks.iter().find(|t| t.name == "egg").unwrap().state { State::Skipped(_) => true, _ => false });
                             true
                         },
                         _ => false })
         } else if i == 2 { // it should start running task "apple" here which will cause a noop
             assert!(match new_msg { 
-                        ExecutionState::RUNNING(tasks) => {
-                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::RUNNING);
+                        ExecutionState::Running(tasks) => {
+                            assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state == State::Running);
                             true
                         },
                         _ => false })

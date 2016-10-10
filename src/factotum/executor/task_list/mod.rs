@@ -20,12 +20,12 @@ use factotum::executor::execution_strategy::RunResult;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum State {
-    WAITING,
-    RUNNING,
-    SUCCESS,
-    SUCCESS_NOOP,
-    FAILED(String),
-    SKIPPED(String)
+    Waiting,
+    Running,
+    Success,
+    SuccessNoop,
+    Failed(String),
+    Skipped(String)
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -40,7 +40,7 @@ impl<T> Task<T> {
     pub fn new<S: Into<String>>(name: S, task_spec: T) -> Self {
         Task {
             name: name.into(),
-            state: State::WAITING,
+            state: State::Waiting,
             task_spec: task_spec,
             run_result: None 
         }

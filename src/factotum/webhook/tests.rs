@@ -14,17 +14,15 @@
  */
 
 use super::*;
-use std::thread;
-use std::thread::JoinHandle;
 use std::sync::mpsc;
 use factotum::executor::{ExecutionState, TaskSnapshot};
 use std::time::Duration;
 
-fn mock_200_ok(endpoint:&str, json:&str) -> Result<u32,(u32, String)> {
+fn mock_200_ok(_:&str, _:&str) -> Result<u32,(u32, String)> {
     Ok(200)
 }
 
-fn mock_500_err(endpoint:&str, json:&str) -> Result<u32,(u32, String)> {
+fn mock_500_err(_:&str, _:&str) -> Result<u32,(u32, String)> {
     Err((500, "Internal Server Error".to_string()))
 }
 
@@ -60,7 +58,7 @@ fn finish_stops_thread() {
     let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com");
     let (tx, rx) = mpsc::channel::<ExecutionState>();
     let jh = wh.connect_webhook(rx, mock_200_ok, zero_backoff);
-    let sent_state = ExecutionState::FINISHED(TaskSnapshot::new());
+    let sent_state = ExecutionState::Finished(TaskSnapshot::new());
     tx.send(sent_state.clone()).unwrap();
     let result = jh.join();
     assert_eq!(result.ok().unwrap(), WebhookResult::new(1, 0, 1, vec![Ok(Attempt::new(Some(200), "OK", sent_state))]));
@@ -73,10 +71,10 @@ fn multiple_messages_sent() {
     let jh = wh.connect_webhook(rx, mock_200_ok, zero_backoff);
     
     let sent_states = vec![
-        ExecutionState::STARTED(TaskSnapshot::new()),
-        ExecutionState::RUNNING(TaskSnapshot::new()),
-        ExecutionState::RUNNING(TaskSnapshot::new()),
-        ExecutionState::FINISHED(TaskSnapshot::new())
+        ExecutionState::Started(TaskSnapshot::new()),
+        ExecutionState::Running(TaskSnapshot::new()),
+        ExecutionState::Running(TaskSnapshot::new()),
+        ExecutionState::Finished(TaskSnapshot::new())
     ];
     
     for state in sent_states.iter() {
@@ -102,10 +100,10 @@ fn failures_tried_three_times() {
     let jh = wh.connect_webhook(rx, mock_500_err, zero_backoff);
     
     let sent_states = vec![
-        ExecutionState::STARTED(TaskSnapshot::new()),
-        ExecutionState::RUNNING(TaskSnapshot::new()),
-        ExecutionState::RUNNING(TaskSnapshot::new()),
-        ExecutionState::FINISHED(TaskSnapshot::new())
+        ExecutionState::Started(TaskSnapshot::new()),
+        ExecutionState::Running(TaskSnapshot::new()),
+        ExecutionState::Running(TaskSnapshot::new()),
+        ExecutionState::Finished(TaskSnapshot::new())
     ];
     
     for state in sent_states.iter() {
@@ -148,7 +146,7 @@ fn bad_urls_post_rejects() {
     let r = Webhook::http_post("http://****/?", r#"{"hello":"world"}"#);
 
     match r {
-        Ok(code) => unreachable!("Test returned good for invalid url"),
+        Ok(_) => unreachable!("Test returned good for invalid url"),
         Err((code, msg)) => {
             assert_eq!(code, 0);
             assert!(msg.contains("failed to lookup address information:")); 

@@ -36,18 +36,18 @@ use factotum::parser::OverrideResultMappings;
 use factotum::parser::TaskReturnCodeMapping;
 use factotum::executor::execution_strategy::*;
 use factotum::webhook::Webhook;
-use factotum::webhook::jobcontext;
 use factotum::executor::ExecutionState;
 use factotum::webhook;
 use colored::*;
 use std::time::Duration;
 use std::process::Command;
-use std::fs::File;
 use std::io::Write;
 use std::fs::OpenOptions;
 use std::env;
 use hyper::Url;
 use std::sync::mpsc;
+#[cfg(test)]
+use std::fs::File;
 
 mod factotum;
 
@@ -162,7 +162,7 @@ fn get_task_result_line_str(task_result:&Task<&FactfileTask>) -> (String, Option
                  failure_str.push_str(&format!("': couldn't be started. Reason: {}", task_exec_error_msg).red().to_string());
                  failure_str
              },
-             (_, State::FAILED(fail_reason)) => {
+             (_, State::Failed(fail_reason)) => {
                  let mut failure_str = "Task '".red().to_string();
                  failure_str.push_str(&format!("{}", task_result.name.cyan()));
                  failure_str.push_str(&format!("': failed after {}. Reason: {}", get_duration_as_string(&res.duration), fail_reason).red().to_string());
@@ -182,7 +182,7 @@ fn get_task_result_line_str(task_result:&Task<&FactfileTask>) -> (String, Option
         // tasks without run details may have been unable to start (some internal error)
         // or skipped because a prior task errored or NOOPed
         
-       let reason_for_not_running = if let State::FAILED(_) = task_result.state {
+       let reason_for_not_running = if let State::Failed(_) = task_result.state {
            "Factotum could not start the task".red().to_string()          
        } else {
            "skipped".to_string()
@@ -326,9 +326,9 @@ fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, st
 
             for task_group in job_res.tasks.iter() {
                 for task in task_group {
-                    if let State::FAILED(_) = task.state {
+                    if let State::Failed(_) = task.state {
                         has_errors = true;
-                    } else if let State::SUCCESS_NOOP = task.state {
+                    } else if let State::SuccessNoop = task.state {
                         has_early_finish = true;
                     }       
                     tasks.push(task);             
@@ -357,7 +357,7 @@ fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, st
                                               .collect::<Vec<String>>()
                                               .join(", ");
                     let stop_requesters = tasks.iter()
-                                            .filter(|r| match r.state { State::SUCCESS_NOOP => true, _ => false } )
+                                            .filter(|r| match r.state { State::SuccessNoop => true, _ => false } )
                                             .map(|r| format!("'{}'", r.name.cyan()))
                                             .collect::<Vec<String>>()
                                             .join(", ");                                 
@@ -379,7 +379,7 @@ fn parse_file_and_execute_with_strategy<F>(factfile:&str, env:Option<String>, st
                                               .join(", ");
 
                     let failed_tasks = tasks.iter()
-                                            .filter(|r| match r.state { State::FAILED(_) => true, _ => false } )
+                                            .filter(|r| match r.state { State::Failed(_) => true, _ => false } )
                                             .map(|r| format!("'{}'", r.name.cyan()))
                                             .collect::<Vec<String>>()
                                             .join(", ");   
@@ -536,7 +536,7 @@ fn test_is_valid_url() {
 
     match is_valid_url("http://potato.com/") {
         Ok(_) => (),
-        Err(msg) => panic!("http://potato.com/ is a valid url")
+        Err(_) => panic!("http://potato.com/ is a valid url")
     }
 }
 
@@ -628,7 +628,7 @@ fn test_get_task_result_line_str() {
     let sample_task = Task::<&FactfileTask> { 
         name: String::from("hello world"),
         // children: vec![],
-        state: State::SUCCESS,
+        state: State::Success,
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
                                    executor: "".to_string(),
@@ -655,7 +655,7 @@ fn test_get_task_result_line_str() {
     let sample_task_stdout = Task::<&FactfileTask> { 
         name: String::from("hello world"),
         // children: vec![],
-        state: State::FAILED("Something about not being in continue job".to_string()),
+        state: State::Failed("Something about not being in continue job".to_string()),
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                   depends_on: vec![],
                                   executor: "".to_string(),
@@ -686,7 +686,7 @@ fn test_get_task_result_line_str() {
                                   command: "".to_string(),
                                   arguments: vec![],
                                   on_result: OnResult { terminate_job: vec![], continue_job: vec![] } },
-        state: State::SKIPPED("for some reason".to_string()),
+        state: State::Skipped("for some reason".to_string()),
         run_result: None
     };
     
@@ -696,7 +696,7 @@ fn test_get_task_result_line_str() {
     let task_init_fail = Task::<&FactfileTask> { 
          name: String::from("init fail"),
         //  children: vec![],
-         state: State::FAILED("bla".to_string()),
+         state: State::Failed("bla".to_string()),
          task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
                                    executor: "".to_string(),
@@ -712,7 +712,7 @@ fn test_get_task_result_line_str() {
     let task_failure = Task::<&FactfileTask> { 
         name: String::from("fails"),
         // children: vec![],
-        state: State::FAILED("bla".to_string()),
+        state: State::Failed("bla".to_string()),
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
                                    executor: "".to_string(),
@@ -754,7 +754,7 @@ fn test_get_task_results_str_summary() {
     let task_one = Task::<&FactfileTask> { 
         name: String::from("hello world"),
         // children: vec![],
-        state: State::SUCCESS,
+        state: State::Success,
         task_spec: &task_one_spec,
         run_result: Some(RunResult {
            run_started: dt,
@@ -777,7 +777,7 @@ fn test_get_task_results_str_summary() {
    let task_two = Task::<&FactfileTask> { 
         name: String::from("hello world 2"),
         // children: vec![],
-        state: State::SUCCESS,
+        state: State::Success,
         task_spec: &task_two_spec,
         run_result: Some(RunResult {
            run_started: dt,

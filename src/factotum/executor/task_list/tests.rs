@@ -19,7 +19,7 @@ use super::*;
 fn task_new_defaults_good() {
     let task = Task::<String>::new("hello", "world".to_string());
     assert_eq!(task.name, "hello");
-    assert_eq!(task.state, State::WAITING);
+    assert_eq!(task.state, State::Waiting);
     // assert_eq!(task.children.len(), 0);
     assert_eq!(task.task_spec, "world".to_string());
     assert!(task.run_result.is_some()==false)
