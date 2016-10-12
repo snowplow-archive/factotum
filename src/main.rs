@@ -140,10 +140,11 @@ fn get_duration_as_string(d:&Duration) -> String {
 fn get_task_result_line_str(task_result:&Task<&FactfileTask>) -> (String, Option<String>) {
     
     let state = task_result.state.clone();
+    let start_time = match task_result.run_started { Some(ref t) => Some(format!("{}", t)), _ => None };
     let (opening_line, stdout, stderr, summary_line) = if let Some(ref res) = task_result.run_result {
          // we know tasks with run details were attempted
 
-         let opener = format!("Task '{}' was started at {}\n", task_result.name.cyan(), res.run_started);
+         let opener = format!("Task '{}' was started at {}\n", task_result.name.cyan(), start_time.unwrap());
          
          let output = match res.stdout {
              Some(ref o) => Some(format!("Task '{}' stdout:\n{}\n", task_result.name.cyan(), o.trim_right().bold())), 
@@ -629,6 +630,7 @@ fn test_get_task_result_line_str() {
         name: String::from("hello world"),
         // children: vec![],
         state: State::Success,
+        run_started: Some(dt),
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
                                    executor: "".to_string(),
@@ -636,7 +638,6 @@ fn test_get_task_result_line_str() {
                                    arguments: vec![],
                                    on_result: OnResult { terminate_job: vec![], continue_job: vec![] } },
         run_result: Some(RunResult {
-           run_started: dt,
            duration: Duration::from_secs(20),
            task_execution_error: None,
            stdout: Some(String::from("hello world")),
@@ -656,6 +657,7 @@ fn test_get_task_result_line_str() {
         name: String::from("hello world"),
         // children: vec![],
         state: State::Failed("Something about not being in continue job".to_string()),
+        run_started: Some(dt),
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                   depends_on: vec![],
                                   executor: "".to_string(),
@@ -663,7 +665,6 @@ fn test_get_task_result_line_str() {
                                   arguments: vec![],
                                   on_result: OnResult { terminate_job: vec![], continue_job: vec![] } },
         run_result: Some(RunResult {
-           run_started: dt,
            duration: Duration::from_secs(20),
            task_execution_error: None,
            stdout: Some(String::from("hello world")),
@@ -680,6 +681,7 @@ fn test_get_task_result_line_str() {
     let task_skipped = Task::<&FactfileTask> { 
         name: String::from("skip"),
         // children: vec![],
+        run_started: None,
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                   depends_on: vec![],
                                   executor: "".to_string(),
@@ -697,6 +699,7 @@ fn test_get_task_result_line_str() {
          name: String::from("init fail"),
         //  children: vec![],
          state: State::Failed("bla".to_string()),
+         run_started: None,
          task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
                                    executor: "".to_string(),
@@ -713,6 +716,7 @@ fn test_get_task_result_line_str() {
         name: String::from("fails"),
         // children: vec![],
         state: State::Failed("bla".to_string()),
+        run_started: Some(dt),
         task_spec: &FactfileTask { name: "hello world".to_string(),
                                    depends_on: vec![],
                                    executor: "".to_string(),
@@ -720,7 +724,6 @@ fn test_get_task_result_line_str() {
                                    arguments: vec![],
                                    on_result: OnResult { terminate_job: vec![], continue_job: vec![] } },
         run_result: Some(RunResult {
-           run_started: dt,
            duration: Duration::from_secs(20),
            task_execution_error: Some(String::from("The task exited with something unexpected")),
            stdout: Some(String::from("hello world")),
@@ -756,8 +759,8 @@ fn test_get_task_results_str_summary() {
         // children: vec![],
         state: State::Success,
         task_spec: &task_one_spec,
+        run_started: Some(dt),
         run_result: Some(RunResult {
-           run_started: dt,
            duration: Duration::from_secs(20),
            task_execution_error: None,
            stdout: Some(String::from("hello world")),
@@ -779,8 +782,8 @@ fn test_get_task_results_str_summary() {
         // children: vec![],
         state: State::Success,
         task_spec: &task_two_spec,
+        run_started: Some(dt),
         run_result: Some(RunResult {
-           run_started: dt,
            duration: Duration::from_secs(80),
            task_execution_error: None,
            stdout: Some(String::from("hello world")),

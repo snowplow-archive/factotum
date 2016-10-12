@@ -124,8 +124,8 @@ impl JobUpdate {
                                 State::SuccessNoop => TaskRunState::COMPLETED,
                                 State::Failed(_) => TaskRunState::FAILED
                             },
-                            started: if let Some(ref r) = task.run_result {
-                                Some(r.run_started.to_rfc3339())
+                            started: if let Some(ref r) = task.run_started {
+                                Some(r.to_rfc3339())
                             } else {
                                 None
                             },

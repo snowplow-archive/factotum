@@ -15,7 +15,6 @@
 
 use factotum::executor::execution_strategy::*;
 use std::process::Command;
-use chrono::UTC;
 use chrono::duration::Duration;
 use std::cmp;
 use std::iter;
@@ -71,7 +70,6 @@ fn simulation_text_good() {
      let result = execute_simulation("hello-world", &mut command);
      
      assert_eq!(result.return_code, 0);
-     assert!(result.run_started > UTC::now().checked_sub(Duration::seconds(60)).unwrap());
      assert_eq!(result.duration, Duration::seconds(0).to_std().ok().unwrap());
      assert_eq!(result.stdout.unwrap(), simulation_text("hello-world", &command));
      assert!(result.stderr.is_some()==false)
@@ -85,7 +83,6 @@ fn simulation_text_good() {
      let result = execute_os("hello-world", &mut command);
 
      assert_eq!(result.return_code, 127);
-     assert!(result.run_started > UTC::now().checked_sub(Duration::seconds(60)).unwrap());
      assert_eq!(result.duration.as_secs(), 0);
      let stderr = result.stderr.unwrap();
      println!("{}", stderr);
@@ -101,7 +98,6 @@ fn simulation_text_good() {
      let result = execute_os("hello-world", &mut command);
 
      assert_eq!(result.return_code, -1);
-     assert!(result.run_started > UTC::now().checked_sub(Duration::seconds(60)).unwrap());
      assert_eq!(result.duration.as_secs(), 0);
      assert_eq!(result.stderr, None);
      assert_eq!(result.stdout, None);
@@ -117,7 +113,6 @@ fn simulation_text_good() {
      let result = execute_os("hello-world", &mut command);
 
      assert_eq!(result.return_code, 0);
-     assert!(result.run_started > UTC::now().checked_sub(Duration::seconds(60)).unwrap());
      assert_eq!(result.duration.as_secs(), 0);
      assert_eq!(result.stderr, None);
      assert_eq!(result.stdout.unwrap(), "echo is a shell builtin");

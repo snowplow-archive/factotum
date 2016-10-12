@@ -96,12 +96,12 @@ fn get_task_snapshot_clones() {
     println!("{:?}", tl);
 
     tl.tasks[0][0].state = State::Success;
+    tl.tasks[0][0].run_started = Some(UTC::now());
     tl.tasks[0][0].run_result = Some(RunResult {
                                                  return_code: 0,
                                                  stderr: Some("hello world".to_string()),
                                                  stdout: Some("hello world".to_string()),
                                                  duration: Duration::seconds(0).to_std().ok().unwrap(),
-                                                 run_started: UTC::now(),
                                                  task_execution_error: None
                                                } );
 
@@ -113,6 +113,7 @@ fn get_task_snapshot_clones() {
     assert_eq!(snapshot[0].name, "apple");
     assert_eq!(snapshot[0].run_result, tl.tasks[0][0].run_result);
     assert_eq!(&snapshot[0].task_spec, tl.tasks[0][0].task_spec);
+    assert!(&snapshot[0].run_started.unwrap() > &UTC::now().checked_sub(Duration::seconds(60)).unwrap());
 
     assert_eq!(snapshot[1].state, State::Waiting);
     assert_eq!(snapshot[1].name, "turnip");

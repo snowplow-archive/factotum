@@ -13,12 +13,6 @@
  * governing permissions and limitations there under.
  */
  
-use factotum::factfile::Task as FactfileTask;
-use factotum::factfile::Factfile;
-use std::process::Command;
-use std::thread;
-use std::sync::mpsc;
-
 pub mod execution_strategy;
 pub mod task_list;
 #[cfg(test)]
@@ -26,6 +20,12 @@ mod tests;
 
 use factotum::executor::task_list::*;
 use factotum::executor::execution_strategy::*;
+use chrono::UTC;
+use factotum::factfile::Task as FactfileTask;
+use factotum::factfile::Factfile;
+use std::process::Command;
+use std::thread;
+use std::sync::mpsc;
 
 pub fn get_task_execution_list(factfile:&Factfile, start_from:Option<String>) -> TaskList<&FactfileTask> {
     let mut task_list = TaskList::<&FactfileTask>::new();
@@ -81,6 +81,7 @@ pub fn get_task_snapshot(tasklist: &TaskList<&FactfileTask>) -> TaskSnapshot {
                                                                    name: task.name.clone(), 
                                                                    task_spec: task.task_spec.clone(), 
                                                                    state: task.state.clone(),
+                                                                   run_started: task.run_started.clone(),
                                                                    run_result: task.run_result.clone() 
                                                                   } ))
             .collect()
@@ -107,6 +108,7 @@ pub fn execute_factfile<'a, F>(factfile:&'a Factfile, start_from:Option<String>,
                 if task.state == State::Waiting {                
                     info!("Running task '{}'!", task.name);
                     task.state = State::Running;
+                    task.run_started = Some(UTC::now());
                     {
                         let tx = tx.clone();
                         let args = format_args(&task.task_spec.command, &task.task_spec.arguments);

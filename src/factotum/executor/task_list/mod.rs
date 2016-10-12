@@ -17,6 +17,8 @@
 mod tests;
 use std::collections::HashMap;
 use factotum::executor::execution_strategy::RunResult;
+use chrono::UTC;
+use chrono::DateTime;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum State {
@@ -33,6 +35,7 @@ pub struct Task<T> {
     pub name: String,
     pub state: State,
     pub task_spec: T,
+    pub run_started: Option<DateTime<UTC>>,
     pub run_result: Option<RunResult>    
 }
 
@@ -42,6 +45,7 @@ impl<T> Task<T> {
             name: name.into(),
             state: State::Waiting,
             task_spec: task_spec,
+            run_started: None,
             run_result: None 
         }
     }

@@ -99,9 +99,9 @@ fn task_states_converted_with_run_data() {
     let now = UTC::now();
 
     example_tasks[0].state = State::Failed("broken".to_string());
+    example_tasks[0].run_started = Some(now.clone());
     example_tasks[0].run_result = Some(RunResult {
         return_code: -1,
-        run_started: now.clone(),
         task_execution_error: Some("some continue job stuff".to_string()),
         stderr: Some("banana".to_string()),
         stdout: Some("get".to_string()),
@@ -109,9 +109,9 @@ fn task_states_converted_with_run_data() {
     });
 
     example_tasks[1].state = State::Success;
+    example_tasks[1].run_started = Some(now.clone());
     example_tasks[1].run_result = Some(RunResult {
         return_code: 0,
-        run_started: now.clone(),
         task_execution_error: None,
         stderr: None,
         stdout: None,

@@ -16,13 +16,10 @@
 #[cfg(test)]
 mod tests;
 use std::process::Command;
-use chrono::UTC;
 use std::time::{Instant, Duration};
-use chrono::DateTime;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct RunResult {
-   pub run_started: DateTime<UTC>,
    pub duration: Duration,
    pub task_execution_error: Option<String>, 
    pub stdout: Option<String>,  
@@ -55,7 +52,6 @@ pub fn simulation_text(name:&str, command: &Command) -> String {
 pub fn execute_simulation(name:&str, command:&mut Command) -> RunResult {
         info!("Simulating execution for {} with command {:?}", name, command);
         RunResult {
-            run_started: UTC::now(),
             duration: Duration::from_secs(0),
             task_execution_error: None, 
             stdout: Some(simulation_text(name, &command)),  
@@ -66,7 +62,6 @@ pub fn execute_simulation(name:&str, command:&mut Command) -> RunResult {
 
 pub fn execute_os(name:&str, command:&mut Command) -> RunResult {
         let run_start = Instant::now(); 
-        let start_time_utc = UTC::now();
         info!("Executing sh {:?}", command); 
         match command.output() {
             Ok(r) => {
@@ -83,7 +78,6 @@ pub fn execute_os(name:&str, command:&mut Command) -> RunResult {
                 let task_stderr_opt = if task_stderr.is_empty() { None } else { Some(task_stderr) };
 
                 RunResult {
-                    run_started: start_time_utc,
                     duration: run_duration,
                     task_execution_error: None, 
                     stdout: task_stdout_opt,  
@@ -92,7 +86,6 @@ pub fn execute_os(name:&str, command:&mut Command) -> RunResult {
                 }
             },
             Err(message) => RunResult {
-                    run_started: start_time_utc,
                     duration: Duration::from_secs(0),
                     task_execution_error: Some(format!("Error executing process - {}", message)), 
                     stdout: None,  
