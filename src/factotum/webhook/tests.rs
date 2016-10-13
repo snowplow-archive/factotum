@@ -14,7 +14,7 @@
 
 use super::*;
 use std::sync::mpsc;
-use factotum::executor::{ExecutionState, TaskSnapshot};
+use factotum::executor::{ExecutionState, TaskSnapshot, JobTransition, Transition, ExecutionUpdate};
 use std::time::Duration;
 
 fn mock_200_ok(_: &str, _: &str) -> Result<u32, (u32, String)> {
@@ -55,25 +55,47 @@ fn webhook_object_constructed_good() {
 #[test]
 fn finish_stops_thread() {
     let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com");
-    let (tx, rx) = mpsc::channel::<ExecutionState>();
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
     let jh = wh.connect_webhook(rx, mock_200_ok, zero_backoff);
-    let sent_state = ExecutionState::Finished(TaskSnapshot::new());
+    let sent_state =
+        ExecutionUpdate::new(ExecutionState::Finished,
+                             TaskSnapshot::new(),
+                             Transition::Job(JobTransition::new(Some(ExecutionState::Running),
+                                                                ExecutionState::Finished)));
     tx.send(sent_state.clone()).unwrap();
     let result = jh.join();
     assert_eq!(result.ok().unwrap(),
                WebhookResult::new(1, 0, 1, vec![Ok(Attempt::new(Some(200), "OK", sent_state))]));
 }
 
+fn make_mock_run() -> Vec<ExecutionUpdate> {
+
+    vec![ 
+        ExecutionUpdate::new(ExecutionState::Started, 
+                            TaskSnapshot::new(),
+                            Transition::Job(JobTransition::new(None, ExecutionState::Started))),
+
+        ExecutionUpdate::new(ExecutionState::Running, 
+                            TaskSnapshot::new(),
+                            Transition::Job(JobTransition::new(Some(ExecutionState::Started), ExecutionState::Running))),
+
+        ExecutionUpdate::new(ExecutionState::Running, 
+                            TaskSnapshot::new(),
+                            Transition::Job(JobTransition::new(Some(ExecutionState::Running), ExecutionState::Running))),
+
+        ExecutionUpdate::new(ExecutionState::Finished, 
+                            TaskSnapshot::new(),
+                            Transition::Job(JobTransition::new(Some(ExecutionState::Running), ExecutionState::Finished))),
+    ]
+}
+
 #[test]
 fn multiple_messages_sent() {
     let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com");
-    let (tx, rx) = mpsc::channel::<ExecutionState>();
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
     let jh = wh.connect_webhook(rx, mock_200_ok, zero_backoff);
 
-    let sent_states = vec![ExecutionState::Started(TaskSnapshot::new()),
-                           ExecutionState::Running(TaskSnapshot::new()),
-                           ExecutionState::Running(TaskSnapshot::new()),
-                           ExecutionState::Finished(TaskSnapshot::new())];
+    let sent_states = make_mock_run();
 
     for state in sent_states.iter() {
         tx.send(state.clone()).unwrap();
@@ -93,13 +115,10 @@ fn multiple_messages_sent() {
 #[test]
 fn failures_tried_three_times() {
     let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com");
-    let (tx, rx) = mpsc::channel::<ExecutionState>();
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
     let jh = wh.connect_webhook(rx, mock_500_err, zero_backoff);
 
-    let sent_states = vec![ExecutionState::Started(TaskSnapshot::new()),
-                           ExecutionState::Running(TaskSnapshot::new()),
-                           ExecutionState::Running(TaskSnapshot::new()),
-                           ExecutionState::Finished(TaskSnapshot::new())];
+    let sent_states = make_mock_run();
 
     for state in sent_states.iter() {
         tx.send(state.clone()).unwrap();

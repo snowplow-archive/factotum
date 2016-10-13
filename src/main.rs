@@ -35,7 +35,7 @@ use factotum::parser::OverrideResultMappings;
 use factotum::parser::TaskReturnCodeMapping;
 use factotum::executor::execution_strategy::*;
 use factotum::webhook::Webhook;
-use factotum::executor::ExecutionState;
+use factotum::executor::ExecutionUpdate;
 use factotum::webhook;
 use colored::*;
 use std::time::Duration;
@@ -376,7 +376,7 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
             let (maybe_updates_channel, maybe_join_handle) = if webhook_url.is_some() {
                 let url = webhook_url.unwrap();
                 let mut wh = Webhook::new(job.name.clone(), job.raw.clone(), url);
-                let (tx, rx) = mpsc::channel::<ExecutionState>();
+                let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
                 let join_handle =
                     wh.connect_webhook(rx, Webhook::http_post, webhook::backoff_rand_1_minute);
                 (Some(tx), Some(join_handle))

@@ -71,13 +71,76 @@ pub fn get_task_execution_list(factfile: &Factfile,
 }
 
 
+use factotum::executor::task_list::State as TaskExecutionState;
+
+pub type TaskTransitions = Vec<TaskTransition>;
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct TaskTransition {
+    pub task_name: String,
+    pub from_state: TaskExecutionState,
+    pub to_state: TaskExecutionState,
+}
+
+impl TaskTransition {
+    pub fn new(task_name: &str, old_state: TaskExecutionState, state: TaskExecutionState) -> Self {
+        TaskTransition {
+            task_name: task_name.to_string(),
+            from_state: old_state,
+            to_state: state,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct JobTransition {
+    pub from: Option<ExecutionState>,
+    pub to: ExecutionState,
+}
+
+
+impl JobTransition {
+    pub fn new(from: Option<ExecutionState>, to: ExecutionState) -> Self {
+        JobTransition {
+            from: from,
+            to: to,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Transition {
+    Job(JobTransition),
+    Task(TaskTransitions),
+}
+
 pub type TaskSnapshot = Vec<Task<FactfileTask>>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExecutionState {
-    Started(TaskSnapshot),
-    Running(TaskSnapshot),
-    Finished(TaskSnapshot),
+    Started,
+    Running,
+    Finished,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ExecutionUpdate {
+    pub execution_state: ExecutionState,
+    pub task_snapshot: TaskSnapshot,
+    pub transition: Transition,
+}
+
+impl ExecutionUpdate {
+    pub fn new(execution_state: ExecutionState,
+               task_snapshot: TaskSnapshot,
+               transition: Transition)
+               -> Self {
+        ExecutionUpdate {
+            execution_state: execution_state,
+            task_snapshot: task_snapshot,
+            transition: transition,
+        }
+    }
 }
 
 pub fn get_task_snapshot(tasklist: &TaskList<&FactfileTask>) -> TaskSnapshot {
@@ -100,7 +163,7 @@ pub fn get_task_snapshot(tasklist: &TaskList<&FactfileTask>) -> TaskSnapshot {
 pub fn execute_factfile<'a, F>(factfile: &'a Factfile,
                                start_from: Option<String>,
                                strategy: F,
-                               progress_channel: Option<mpsc::Sender<ExecutionState>>)
+                               progress_channel: Option<mpsc::Sender<ExecutionUpdate>>)
                                -> TaskList<&'a FactfileTask>
     where F: Fn(&str, &mut Command) -> RunResult + Send + Sync + 'static + Copy
 {
@@ -109,7 +172,12 @@ pub fn execute_factfile<'a, F>(factfile: &'a Factfile,
 
     // notify the progress channel
     if let Some(ref send) = progress_channel {
-        send.send(ExecutionState::Started(get_task_snapshot(&tasklist))).unwrap();
+        let update =
+            ExecutionUpdate::new(ExecutionState::Started,
+                                 get_task_snapshot(&tasklist),
+                                 Transition::Job(JobTransition::new(None,
+                                                                    ExecutionState::Started)));
+        send.send(update).unwrap();
     }
 
     for task_grp_idx in 0..tasklist.tasks.len() {
@@ -149,18 +217,46 @@ pub fn execute_factfile<'a, F>(factfile: &'a Factfile,
             .filter(|t| t.state == State::Running)
             .count();
 
+        let is_first_run = task_grp_idx == 0;
+
+        if is_first_run {
+            if let Some(ref send) = progress_channel {
+                let update = ExecutionUpdate::new(ExecutionState::Running, 
+                                          get_task_snapshot(&tasklist),
+                                          Transition::Job( JobTransition::new(Some(ExecutionState::Started), ExecutionState::Running) ));
+                send.send(update).unwrap();
+            }
+        }
+
         if expected_count > 0 {
 
             if let Some(ref send) = progress_channel {
-                send.send(ExecutionState::Running(get_task_snapshot(&tasklist))).unwrap();
+                let running_task_transitions = tasklist.tasks[task_grp_idx]
+                    .iter()
+                    .filter(|t| t.state == State::Running)
+                    .map(|t| {
+                        TaskTransition::new(&t.name,
+                                            TaskExecutionState::Waiting,
+                                            TaskExecutionState::Running)
+                    })
+                    .collect::<Vec<TaskTransition>>();
+
+                let update = ExecutionUpdate::new(ExecutionState::Running,
+                                                  get_task_snapshot(&tasklist),
+                                                  Transition::Task(running_task_transitions));
+
+                send.send(update).unwrap();
             }
 
             for _ in 0..expected_count {
                 let (idx, task_result) = rx.recv().unwrap();
+
                 info!("'{}' returned {} in {:?}",
                       tasklist.tasks[task_grp_idx][idx].name,
                       task_result.return_code,
                       task_result.duration);
+
+                let mut additional_transitions = vec![];
 
                 if tasklist.tasks[task_grp_idx][idx]
                     .task_spec
@@ -169,19 +265,27 @@ pub fn execute_factfile<'a, F>(factfile: &'a Factfile,
                     .contains(&task_result.return_code) {
                     // if the return code is in the terminate early list, prune the sub-tree (set to skipped) return early term
                     tasklist.tasks[task_grp_idx][idx].state = State::SuccessNoop;
+
                     let skip_list =
                         tasklist.get_descendants(&tasklist.tasks[task_grp_idx][idx].name);
+
+                    let cause_task = tasklist.tasks[task_grp_idx][idx].name.clone();
+
                     for mut task in tasklist.tasks.iter_mut().flat_map(|tg| tg.iter_mut()) {
                         // all the tasks
                         if skip_list.contains(&task.name) {
                             let skip_message = if let State::Skipped(ref msg) = task.state {
                                 format!("{}, the task '{}' requested early termination",
                                         msg,
-                                        task.name)
+                                        &cause_task)
                             } else {
-                                format!("The task '{}' requested early termination", task.name)
+                                format!("the task '{}' requested early termination", &cause_task)
                             };
+                            let prev_state = task.state.clone();
                             task.state = State::Skipped(skip_message);
+                            let skip_transition =
+                                TaskTransition::new(&task.name, prev_state, task.state.clone());
+                            additional_transitions.push(skip_transition);
                         }
                     }
                 } else if tasklist.tasks[task_grp_idx][idx]
@@ -209,15 +313,22 @@ pub fn execute_factfile<'a, F>(factfile: &'a Factfile,
                     tasklist.tasks[task_grp_idx][idx].state = State::Failed(err_msg);
                     let skip_list =
                         tasklist.get_descendants(&tasklist.tasks[task_grp_idx][idx].name);
+
+                    let cause_task = tasklist.tasks[task_grp_idx][idx].name.clone();
+
                     for mut task in tasklist.tasks.iter_mut().flat_map(|tg| tg.iter_mut()) {
                         // all the tasks
                         if skip_list.contains(&task.name) {
                             let skip_message = if let State::Skipped(ref msg) = task.state {
-                                format!("{}, the task '{}' failed", msg, task.name)
+                                format!("{}, the task '{}' failed", msg, cause_task)
                             } else {
-                                format!("The task '{}' failed", task.name)
+                                format!("the task '{}' failed", cause_task)
                             };
+                            let prev_state = task.state.clone();
                             task.state = State::Skipped(skip_message);
+                            let skip_transition =
+                                TaskTransition::new(&task.name, prev_state, task.state.clone());
+                            additional_transitions.push(skip_transition);
                         }
                     }
                 }
@@ -225,7 +336,16 @@ pub fn execute_factfile<'a, F>(factfile: &'a Factfile,
                 tasklist.tasks[task_grp_idx][idx].run_result = Some(task_result);
 
                 if let Some(ref send) = progress_channel {
-                    send.send(ExecutionState::Running(get_task_snapshot(&tasklist))).unwrap();
+                    let exec_task_transition =
+                        TaskTransition::new(&tasklist.tasks[task_grp_idx][idx].name,
+                                            TaskExecutionState::Running,
+                                            tasklist.tasks[task_grp_idx][idx].state.clone());
+                    additional_transitions.insert(0, exec_task_transition);
+
+                    let update = ExecutionUpdate::new(ExecutionState::Running,
+                                                      get_task_snapshot(&tasklist),
+                                                      Transition::Task(additional_transitions));
+                    send.send(update).unwrap();
                 }
 
             }
@@ -233,7 +353,10 @@ pub fn execute_factfile<'a, F>(factfile: &'a Factfile,
     }
 
     if let Some(ref send) = progress_channel {
-        send.send(ExecutionState::Finished(get_task_snapshot(&tasklist))).unwrap();
+        let update = ExecutionUpdate::new(ExecutionState::Finished, 
+                                          get_task_snapshot(&tasklist),
+                                          Transition::Job( JobTransition::new(Some(ExecutionState::Running), ExecutionState::Finished) ));
+        send.send(update).unwrap();
     }
 
     tasklist

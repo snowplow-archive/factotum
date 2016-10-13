@@ -21,7 +21,7 @@ mod tests;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::mpsc::Receiver;
-use factotum::executor::ExecutionState;
+use factotum::executor::{ExecutionState, ExecutionUpdate};
 use std::time::Duration;
 use rand;
 use factotum::webhook::jobcontext::JobContext;
@@ -38,18 +38,18 @@ pub fn backoff_rand_1_minute() -> Duration {
 pub struct Attempt {
     code: Option<u32>,
     message: String,
-    execution_state: ExecutionState,
+    execution_update: ExecutionUpdate,
 }
 
 impl Attempt {
     pub fn new<S: Into<String>>(code: Option<u32>,
                                 message: S,
-                                execution_state: ExecutionState)
+                                execution_update: ExecutionUpdate)
                                 -> Self {
         Attempt {
             code: code,
             message: message.into(),
-            execution_state: execution_state,
+            execution_update: execution_update,
         }
     }
 }
@@ -128,7 +128,7 @@ impl Webhook {
     }
 
     pub fn connect_webhook<F, G>(&mut self,
-                                 updates_channel: Receiver<ExecutionState>,
+                                 updates_channel: Receiver<ExecutionUpdate>,
                                  emitter_func: F,
                                  backoff_retry_period: G)
                                  -> JoinHandle<WebhookResult>
@@ -149,10 +149,10 @@ impl Webhook {
 
             while done == false {
 
-                let message = updates_channel.recv().unwrap();
+                let message: ExecutionUpdate = updates_channel.recv().unwrap();
                 events_recv += 1;
 
-                if let ExecutionState::Finished(_) = message {
+                if ExecutionState::Finished == message.execution_state {
                     done = true;
                 }
 
@@ -170,6 +170,10 @@ impl Webhook {
                         }
                         Err((code, r)) => {
                             fail_count = fail_count + 1;
+                            warn!("Failed to send webhook update to '{}': {}",
+                                  &endpoint,
+                                  &json_post_data);
+                            warn!("Reason: {}, {}", code, r);
                             Err(Attempt::new(Some(code), r, message.clone()))
                         }
                     };
