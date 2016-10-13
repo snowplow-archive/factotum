@@ -1,3 +1,16 @@
+Version 0.3.0 (2016-10-12)
+--------------------------
+Add factotum -v / --version (#36)
+Add CI/CD to project (#56)
+Publish Factotum binaries for macOS (#69)
+Add --dry-run option (#60)
+Add validate command (#68)
+Add ability to visualize DAG at CLI (#62)
+Move no color setting to CLI option (#53)
+Move run behavior into a run sub-command (#70)
+Set Factotum to go as far through the DAG as possible (#61) 
+Add webhook support (#59)
+
 Version 0.2.0 (2016-06-13)
 --------------------------
 Allow terminal colour toggling using CLICOLOR (#51)
