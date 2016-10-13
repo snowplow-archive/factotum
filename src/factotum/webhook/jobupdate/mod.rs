@@ -19,9 +19,13 @@ static JOB_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
                                                factotum/job_update/jsonschema/1-0-0";
 
 use factotum::executor::ExecutionState;
-use rustc_serialize::json;
 use super::jobcontext::JobContext;
 use chrono::UTC;
+use std::collections::BTreeMap;
+use rustc_serialize::Encodable;
+use rustc_serialize;
+use rustc_serialize::json::{self, ToJson, Json};
+
 
 #[derive(RustcDecodable, RustcEncodable, Debug, PartialEq)]
 pub enum JobRunState {
@@ -40,7 +44,7 @@ pub enum TaskRunState {
     SKIPPED,
 }
 
-#[derive(RustcDecodable, RustcEncodable, Debug, PartialEq)]
+#[derive(RustcDecodable, Debug, PartialEq)]
 #[allow(non_snake_case)]
 pub struct TaskUpdate {
     taskName: String,
@@ -51,6 +55,70 @@ pub struct TaskUpdate {
     stderr: Option<String>,
     returnCode: Option<i32>,
     errorMessage: Option<String>,
+}
+
+impl Encodable for TaskUpdate {
+    fn encode<S: rustc_serialize::Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
+        self.to_json().encode(s)
+    }
+}
+
+impl ToJson for TaskUpdate {
+    fn to_json(&self) -> Json {
+
+        let mut d = BTreeMap::new();
+
+        // don't emit optional fields
+
+        match self.errorMessage {
+            Some(ref value) => {
+                d.insert("errorMessage".to_string(), value.to_json());
+            }
+            None => {}
+        }
+
+        match self.returnCode {
+            Some(ref value) => {
+                d.insert("returnCode".to_string(), value.to_json());
+            }
+            None => {}
+        }
+
+        match self.stderr {
+            Some(ref value) => {
+                d.insert("stderr".to_string(), value.to_json());
+            }
+            None => {}
+        }
+
+        match self.stdout {
+            Some(ref value) => {
+                d.insert("stdout".to_string(), value.to_json());
+            }
+            None => {}
+        }
+
+        match self.duration {
+            Some(ref value) => {
+                d.insert("duration".to_string(), value.to_json());
+            }
+            None => {}
+        }
+
+        match self.started {
+            Some(ref value) => {
+                d.insert("started".to_string(), value.to_json());
+            }
+            None => {}
+        }
+
+        d.insert("taskName".to_string(), self.taskName.to_json());
+        d.insert("state".to_string(),
+                 Json::from_str(&json::encode(&self.state).unwrap()).unwrap());
+
+
+        Json::Object(d)
+    }
 }
 
 #[derive(RustcEncodable, Debug)]
