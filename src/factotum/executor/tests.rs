@@ -138,7 +138,7 @@ fn execute_sends_started_msg() {
 
     let task_count_in_factfile = 6;
 
-    let (tx, rx) = mpsc::channel::<ExecutionState>();
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
 
     execute_factfile(&ff,
                      None,
@@ -147,10 +147,11 @@ fn execute_sends_started_msg() {
 
     let expected_starting = rx.recv_timeout(Duration::from_millis(300)).unwrap();
 
-    match expected_starting {
-        ExecutionState::Started(ts) => {
-            assert!(ts.iter().all(|t| t.state == State::Waiting));
-            assert_eq!(ts.len(), task_count_in_factfile);
+    match expected_starting.execution_state {
+        ExecutionState::Started => {
+            assert!(expected_starting.task_snapshot.iter().all(|t| t.state == State::Waiting));
+            assert_eq!(expected_starting.task_snapshot.len(),
+                       task_count_in_factfile);
         }
         _ => panic!("Failed! Didn't receive the correct event type"),
     }
@@ -179,7 +180,7 @@ fn execute_sends_running_messages() {
 
     let task_count_in_factfile = 6;
 
-    let (tx, rx) = mpsc::channel::<ExecutionState>();
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
 
     let expected_running_message_count = get_task_execution_list(&ff, None).tasks.len();
     let expected_completed_message_count = task_count_in_factfile;
@@ -204,31 +205,31 @@ fn execute_sends_running_messages() {
         print!("***\n{:?}\n***\n", new_msg);
 
         if i == 1 {
-            assert!(match new_msg { 
-                ExecutionState::Started(tasks) => {
+            assert!(match (new_msg.execution_state, new_msg.task_snapshot) { 
+                (ExecutionState::Started, tasks) => {
                     assert!(tasks.iter().all(|t| t.state == State::Waiting));
                     true
                 }
-                _ => false,
+                (_, _) => false,
             })
         } else if i == total_expected_task_updates {
-            assert!(match new_msg { 
-                ExecutionState::Finished(tasks) => {
+            assert!(match (new_msg.execution_state, new_msg.task_snapshot) { 
+                (ExecutionState::Finished, tasks) => {
                     assert!(tasks.iter().all(|t| t.state == State::Success));
                     true
                 }
-                _ => false,
+                (_, _) => false,
             })
         } else if i > 0 && i < total_expected_task_updates {
-            assert!(match new_msg { 
-                ExecutionState::Running(tasks) => {
+            assert!(match (new_msg.execution_state, new_msg.task_snapshot) { 
+                (ExecutionState::Running, tasks) => {
                     assert!(tasks.iter().all(|t| {
                         t.state == State::Success || t.state == State::Waiting ||
                         t.state == State::Running
                     }));
                     true
                 }
-                _ => false,
+                (_, _) => false,
             })
         } else if i > total_expected_task_updates {
             panic!("Too many messages received")
@@ -236,6 +237,103 @@ fn execute_sends_running_messages() {
             unreachable!("Uncaught message");
         }
     }
+}
+
+#[test]
+fn execute_sends_updates_for_skipped_fail() {
+    use factotum::executor::task_list::State;
+    use std::sync::mpsc;
+    use std::time::Duration;
+    use factotum::factfile::Task as FactfileTask;
+
+    let mut ff = Factfile::new("N/A", "test");
+
+    let tasks: Vec<FactfileTask> = vec![make_task("apple", &vec![]),
+                                        make_task("potato", &vec![]),
+                                        make_task("turnip", &vec!["potato"]),
+                                        make_task("egg", &vec!["apple", "turnip"])];
+
+    for mut task in tasks.into_iter() {
+        if task.name == "potato" {
+            task.on_result.continue_job.push(0);
+        } else {
+            task.on_result.continue_job.push(1);
+        }
+        ff.add_task_obj(&task);
+    }
+
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
+
+    execute_factfile(&ff,
+                     None,
+                     execution_strategy::execute_simulation,
+                     Some(tx.clone()));
+
+    let mut recv_msg = vec![];
+
+    for _ in 0..8 {
+        if let Ok(v) = rx.recv_timeout(Duration::from_millis(300)) {
+            recv_msg.push(v);
+        } else {
+            panic!("Not enough events received");
+        }
+    }
+
+
+    let task_updates = recv_msg.into_iter()
+        .filter(|m| match m.transition {
+            Transition::Job(_) => false,
+            _ => true,
+        })
+        .collect::<Vec<ExecutionUpdate>>();
+
+    assert_eq!(task_updates.len(), 5);
+
+    let ref final_task_update = task_updates[4];
+
+    println!("{:?}", final_task_update);
+
+    assert_eq!(final_task_update.execution_state, ExecutionState::Running);
+
+    let is_apple_failing =
+        match final_task_update.task_snapshot.iter().find(|t| t.name == "apple").unwrap().state {
+            State::Failed(_) => true,
+            _ => false,
+        };
+    assert!(is_apple_failing);
+
+    let is_turnip_failing =
+        match final_task_update.task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state {
+            State::Failed(_) => true,
+            _ => false,
+        };
+    assert!(is_turnip_failing);
+
+    let is_egg_skipped =
+        match final_task_update.task_snapshot.iter().find(|t| t.name == "egg").unwrap().state {
+            State::Skipped(ref msg) => {
+                assert_eq!(msg, "the task 'apple' failed, the task 'turnip' failed");
+                true
+            }
+            _ => false,
+        };
+
+    assert!(is_egg_skipped);
+
+    let expected_task_transition =
+        vec![TaskTransition::new("turnip",
+                                 State::Running,
+                                 State::Failed("the task exited with a value not specified in \
+                                                continue_job - 0 (task expects one of the \
+                                                following return codes to continue [1])"
+                                     .to_string())),
+             TaskTransition::new("egg",
+                                 State::Skipped("the task 'apple' failed".to_string()),
+                                 State::Skipped("the task 'apple' failed, the task 'turnip' \
+                                                 failed"
+                                     .to_string()))];
+    assert_eq!(final_task_update.transition,
+               Transition::Task(expected_task_transition));
 }
 
 #[test]
@@ -255,73 +353,209 @@ fn execute_sends_failed_skipped_messages() {
         ff.add_task_obj(&task);
     }
 
-    let (tx, rx) = mpsc::channel::<ExecutionState>();
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
 
     execute_factfile(&ff,
                      None,
                      execution_strategy::execute_simulation,
                      Some(tx.clone()));
 
-    for i in 1..5 {
-        let new_msg = rx.recv_timeout(Duration::from_millis(300)).unwrap();
+    let mut recv_msg = vec![];
 
-        println!("Received message: ");
-        print!("***\n{}: {:?}\n***\n", i, new_msg);
-
-        if i == 1 {
-            assert!(match new_msg { 
-                ExecutionState::Started(tasks) => {
-                    assert!(tasks.iter().all(|t| t.state == State::Waiting));
-                    true
-                }
-                _ => false,
-            })
-        } else if i == 4 {
-            assert!(match new_msg { 
-                ExecutionState::Finished(tasks) => {
-                    assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state {
-                        State::Failed(_) => true,
-                        _ => false,
-                    });
-                    assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state {
-                        State::Skipped(_) => true,
-                        _ => false,
-                    });
-                    true
-                }
-                _ => false,
-            })
-        } else if i == 3 {
-            // it should send a message saying apple failed
-            assert!(match new_msg { 
-                ExecutionState::Running(tasks) => {
-                    assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state {
-                        State::Failed(_) => true,
-                        _ => false,
-                    });
-                    assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state {
-                        State::Skipped(_) => true,
-                        _ => false,
-                    });
-                    true
-                }
-                _ => false,
-            })
-        } else if i == 2 {
-            // it should start running task "apple" here which will fail
-            assert!(match new_msg { 
-                ExecutionState::Running(tasks) => {
-                    assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state ==
-                            State::Running);
-                    true
-                }
-                _ => false,
-            })
+    for _ in 0..5 {
+        if let Ok(v) = rx.recv_timeout(Duration::from_millis(300)) {
+            recv_msg.push(v);
         } else {
-            unreachable!("Uncaught message");
+            panic!("Not enough events received");
         }
     }
+
+    let (job_updates, task_updates): (Vec<ExecutionUpdate>, Vec<ExecutionUpdate>) =
+        recv_msg.into_iter()
+            .partition(|m| match m.transition {
+                Transition::Job(_) => true,
+                _ => false,
+            });
+
+    println!("********* JOB UPDATES ***********");
+    for (idx, job_update) in job_updates.iter().enumerate() {
+        println!("Received job update: ");
+        print!("***\n{}: {:?}\n***\n", idx + 1, job_update);
+    }
+
+    assert_eq!(job_updates.len(), 3); // null -> starting, starting->running, started->complete
+    assert_eq!(task_updates.len(), 2); // apple running, (apple failed, turnip skipped)
+
+    assert_eq!(job_updates[0].execution_state, ExecutionState::Started);
+    assert!(job_updates[0].task_snapshot.iter().all(|t| t.state == State::Waiting));
+    assert_eq!(job_updates[0].transition,
+               Transition::Job(JobTransition::new(None, ExecutionState::Started)));
+
+    assert_eq!(job_updates[1].execution_state, ExecutionState::Running);
+    assert!(job_updates[1].task_snapshot.iter().find(|t| t.name == "apple").unwrap().state ==
+            State::Running);
+    assert!(job_updates[1].task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state ==
+            State::Waiting);
+    assert_eq!(job_updates[1].transition,
+               Transition::Job(JobTransition::new(Some(ExecutionState::Started),
+                                                  ExecutionState::Running)));
+
+    assert_eq!(job_updates[2].execution_state, ExecutionState::Finished);
+    let task_apple_failed =
+        match job_updates[2].task_snapshot.iter().find(|t| t.name == "apple").unwrap().state {
+            State::Failed(_) => true,
+            _ => false,
+        };
+    assert!(task_apple_failed);
+    let task_turnip_skipped =
+        match job_updates[2].task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state {
+            State::Skipped(ref msg) => {
+                assert_eq!(msg, "the task 'apple' failed");
+                true
+            }
+            _ => false,
+        };
+    assert!(task_turnip_skipped);
+    assert_eq!(job_updates[2].transition,
+               Transition::Job(JobTransition::new(Some(ExecutionState::Running),
+                                                  ExecutionState::Finished)));
+
+    println!("********* TASK UPDATES ***********");
+    for (idx, task_update) in task_updates.iter().enumerate() {
+        println!("Received task update: ");
+        print!("***\n{}: {:?}\n***\n", idx + 1, task_update);
+    }
+
+    assert_eq!(task_updates[0].execution_state, ExecutionState::Running);
+    assert!(task_updates[0].task_snapshot.iter().find(|t| t.name == "apple").unwrap().state ==
+            State::Running);
+    assert!(task_updates[0].task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state ==
+            State::Waiting);
+    let expected_first_task_transition =
+        vec![TaskTransition::new("apple", State::Waiting, State::Running)];
+    assert_eq!(task_updates[0].transition,
+               Transition::Task(expected_first_task_transition));
+
+
+    assert_eq!(task_updates[1].execution_state, ExecutionState::Running);
+
+    let task_apple_failed_task_update =
+        match task_updates[1].task_snapshot.iter().find(|t| t.name == "apple").unwrap().state {
+            State::Failed(_) => true,
+            _ => false,
+        };
+    assert!(task_apple_failed_task_update);
+
+    let task_turnip_skipped_task_update =
+        match task_updates[1].task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state {
+            State::Skipped(_) => true,
+            _ => false,
+        };
+
+    assert!(task_turnip_skipped_task_update);
+    let expected_second_task_transition = vec![
+        TaskTransition::new("apple", State::Running, State::Failed("the task exited with a value not specified in continue_job - 0 (task expects one of the following return codes to continue [1])".to_string())),
+        TaskTransition::new("turnip", State::Waiting, State::Skipped("the task 'apple' failed".to_string())), 
+    ];
+    assert_eq!(task_updates[1].transition,
+               Transition::Task(expected_second_task_transition));
 }
+
+#[test]
+fn execute_sends_updates_for_skipped_noop() {
+    use factotum::executor::task_list::State;
+    use std::sync::mpsc;
+    use std::time::Duration;
+    use factotum::factfile::Task as FactfileTask;
+
+    let mut ff = Factfile::new("N/A", "test");
+
+    let tasks: Vec<FactfileTask> = vec![make_task("apple", &vec![]),
+                                        make_task("potato", &vec![]),
+                                        make_task("turnip", &vec!["potato"]),
+                                        make_task("egg", &vec!["apple", "turnip"])];
+
+    for mut task in tasks.into_iter() {
+        if task.name == "potato" {
+            task.on_result.continue_job.push(0);
+        } else {
+            task.on_result.terminate_job.push(0);
+        }
+        ff.add_task_obj(&task);
+    }
+
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
+
+    execute_factfile(&ff,
+                     None,
+                     execution_strategy::execute_simulation,
+                     Some(tx.clone()));
+
+    let mut recv_msg = vec![];
+
+    for _ in 0..8 {
+        if let Ok(v) = rx.recv_timeout(Duration::from_millis(300)) {
+            recv_msg.push(v);
+        } else {
+            panic!("Not enough events received");
+        }
+    }
+
+
+    let task_updates = recv_msg.into_iter()
+        .filter(|m| match m.transition {
+            Transition::Job(_) => false,
+            _ => true,
+        })
+        .collect::<Vec<ExecutionUpdate>>();
+
+    assert_eq!(task_updates.len(), 5);
+
+    let ref final_task_update = task_updates[4];
+
+    println!("{:?}", final_task_update);
+
+    assert_eq!(final_task_update.execution_state, ExecutionState::Running);
+
+    let is_apple_noop =
+        match final_task_update.task_snapshot.iter().find(|t| t.name == "apple").unwrap().state {
+            State::SuccessNoop => true,
+            _ => false,
+        };
+    assert!(is_apple_noop);
+
+    let is_turnip_noop =
+        match final_task_update.task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state {
+            State::SuccessNoop => true,
+            _ => false,
+        };
+    assert!(is_turnip_noop);
+
+    let is_egg_skipped =
+        match final_task_update.task_snapshot.iter().find(|t| t.name == "egg").unwrap().state {
+            State::Skipped(ref msg) => {
+                assert_eq!(msg,
+                           "the task 'apple' requested early termination, the task 'turnip' \
+                            requested early termination");
+                true
+            }
+            _ => false,
+        };
+
+    assert!(is_egg_skipped);
+
+    let expected_task_transition =
+        vec![TaskTransition::new("turnip", State::Running, State::SuccessNoop),
+             TaskTransition::new("egg",
+                                 State::Skipped("the task 'apple' requested early termination"
+                                     .to_string()),
+                                 State::Skipped("the task 'apple' requested early termination, \
+                                                 the task 'turnip' requested early termination"
+                                     .to_string()))];
+    assert_eq!(final_task_update.transition,
+               Transition::Task(expected_task_transition));
+}
+
 
 #[test]
 fn execute_sends_noop_skipped_messages() {
@@ -341,78 +575,140 @@ fn execute_sends_noop_skipped_messages() {
         ff.add_task_obj(&task);
     }
 
-    let (tx, rx) = mpsc::channel::<ExecutionState>();
+    let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
 
     execute_factfile(&ff,
                      None,
                      execution_strategy::execute_simulation,
                      Some(tx.clone()));
 
-    for i in 1..5 {
-        let new_msg = rx.recv_timeout(Duration::from_millis(300)).unwrap();
+    let mut recv_msg = vec![];
 
-        println!("Received message: ");
-        print!("***\n{:?}\n***\n", new_msg);
-
-        if i == 1 {
-            assert!(match new_msg { 
-                ExecutionState::Started(tasks) => {
-                    assert!(tasks.iter().all(|t| t.state == State::Waiting));
-                    true
-                }
-                _ => false,
-            })
-        } else if i == 4 {
-            assert!(match new_msg { 
-                ExecutionState::Finished(tasks) => {
-                    assert!(match tasks.iter().find(|t| t.name == "apple").unwrap().state {
-                        State::SuccessNoop => true,
-                        _ => false,
-                    });
-                    assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state {
-                        State::Skipped(_) => true,
-                        _ => false,
-                    });
-                    assert!(match tasks.iter().find(|t| t.name == "egg").unwrap().state {
-                        State::Skipped(_) => true,
-                        _ => false,
-                    });
-                    true
-                }
-                _ => false,
-            })
-        } else if i == 3 {
-            // task apple should noop
-            assert!(match new_msg { 
-                ExecutionState::Running(tasks) => {
-                    assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state ==
-                            State::SuccessNoop);
-                    assert!(match tasks.iter().find(|t| t.name == "turnip").unwrap().state {
-                        State::Skipped(_) => true,
-                        _ => false,
-                    });
-                    assert!(match tasks.iter().find(|t| t.name == "egg").unwrap().state {
-                        State::Skipped(_) => true,
-                        _ => false,
-                    });
-                    true
-                }
-                _ => false,
-            })
-        } else if i == 2 {
-            // it should start running task "apple" here which will cause a noop
-            assert!(match new_msg { 
-                ExecutionState::Running(tasks) => {
-                    assert!(tasks.iter().find(|t| t.name == "apple").unwrap().state ==
-                            State::Running);
-                    true
-                }
-                _ => false,
-            })
+    for _ in 0..5 {
+        if let Ok(v) = rx.recv_timeout(Duration::from_millis(300)) {
+            recv_msg.push(v);
         } else {
-            unreachable!("Uncaught message");
+            panic!("Not enough events received");
         }
     }
+
+    let (job_updates, task_updates): (Vec<ExecutionUpdate>, Vec<ExecutionUpdate>) =
+        recv_msg.into_iter()
+            .partition(|m| match m.transition {
+                Transition::Job(_) => true,
+                _ => false,
+            });
+
+    println!("********* JOB UPDATES ***********");
+    for (idx, job_update) in job_updates.iter().enumerate() {
+        println!("Received job update: ");
+        print!("***\n{}: {:?}\n***\n", idx + 1, job_update);
+    }
+
+    assert_eq!(job_updates.len(), 3); // null -> starting, starting->running, started->complete
+    assert_eq!(task_updates.len(), 2); // apple running, (apple failed, turnip skipped, egg skipped)
+
+    assert_eq!(job_updates[0].execution_state, ExecutionState::Started);
+    assert!(job_updates[0].task_snapshot.iter().all(|t| t.state == State::Waiting));
+    assert_eq!(job_updates[0].transition,
+               Transition::Job(JobTransition::new(None, ExecutionState::Started)));
+
+    assert_eq!(job_updates[1].execution_state, ExecutionState::Running);
+    assert!(job_updates[1].task_snapshot.iter().find(|t| t.name == "apple").unwrap().state ==
+            State::Running);
+    assert!(job_updates[1].task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state ==
+            State::Waiting);
+    assert!(job_updates[1].task_snapshot.iter().find(|t| t.name == "egg").unwrap().state ==
+            State::Waiting);
+    assert_eq!(job_updates[1].transition,
+               Transition::Job(JobTransition::new(Some(ExecutionState::Started),
+                                                  ExecutionState::Running)));
+
+    assert_eq!(job_updates[2].execution_state, ExecutionState::Finished);
+    let task_apple_noop =
+        match job_updates[2].task_snapshot.iter().find(|t| t.name == "apple").unwrap().state {
+            State::SuccessNoop => true,
+            _ => false,
+        };
+    assert!(task_apple_noop);
+
+    let task_turnip_skipped =
+        match job_updates[2].task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state {
+            State::Skipped(ref msg) => {
+                assert_eq!(msg, "the task 'apple' requested early termination");
+                true
+            }
+            _ => false,
+        };
+    assert!(task_turnip_skipped);
+
+    let task_egg_skipped =
+        match job_updates[2].task_snapshot.iter().find(|t| t.name == "egg").unwrap().state {
+            State::Skipped(ref msg) => {
+                assert_eq!(msg, "the task 'apple' requested early termination");
+                true
+            }
+            _ => false,
+        };
+    assert!(task_egg_skipped);
+
+    assert_eq!(job_updates[2].transition,
+               Transition::Job(JobTransition::new(Some(ExecutionState::Running),
+                                                  ExecutionState::Finished)));
+
+    println!("********* TASK UPDATES ***********");
+    for (idx, task_update) in task_updates.iter().enumerate() {
+        println!("Received task update: ");
+        print!("***\n{}: {:?}\n***\n", idx + 1, task_update);
+    }
+
+    assert_eq!(task_updates[0].execution_state, ExecutionState::Running);
+    assert!(task_updates[0].task_snapshot.iter().find(|t| t.name == "apple").unwrap().state ==
+            State::Running);
+    assert!(task_updates[0].task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state ==
+            State::Waiting);
+    assert!(task_updates[0].task_snapshot.iter().find(|t| t.name == "egg").unwrap().state ==
+            State::Waiting);
+
+    let expected_first_task_transition =
+        vec![TaskTransition::new("apple", State::Waiting, State::Running)];
+    assert_eq!(task_updates[0].transition,
+               Transition::Task(expected_first_task_transition));
+
+
+    assert_eq!(task_updates[1].execution_state, ExecutionState::Running);
+
+    let task_apple_noop_task_update =
+        match task_updates[1].task_snapshot.iter().find(|t| t.name == "apple").unwrap().state {
+            State::SuccessNoop => true,
+            _ => false,
+        };
+    assert!(task_apple_noop_task_update);
+
+    let task_turnip_skipped_task_update =
+        match task_updates[1].task_snapshot.iter().find(|t| t.name == "turnip").unwrap().state {
+            State::Skipped(_) => true,
+            _ => false,
+        };
+    assert!(task_turnip_skipped_task_update);
+
+    let task_egg_skipped_task_update =
+        match job_updates[2].task_snapshot.iter().find(|t| t.name == "egg").unwrap().state {
+            State::Skipped(ref msg) => {
+                assert_eq!(msg, "the task 'apple' requested early termination");
+                true
+            }
+            _ => false,
+        };
+    assert!(task_egg_skipped_task_update);
+
+    let expected_second_task_transition = vec![
+        TaskTransition::new("apple", State::Running, State::SuccessNoop),
+        TaskTransition::new("turnip", State::Waiting, State::Skipped("the task 'apple' requested early termination".to_string())), 
+        TaskTransition::new("egg", State::Waiting, State::Skipped("the task 'apple' requested early termination".to_string())), 
+    ];
+    assert_eq!(task_updates[1].transition,
+               Transition::Task(expected_second_task_transition));
 }
 
 // todo write test for rejecting non "shell" execution types

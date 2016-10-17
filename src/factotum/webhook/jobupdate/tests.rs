@@ -14,16 +14,114 @@
 
 use super::*;
 use factotum::parser::schemavalidator;
-use factotum::executor::ExecutionState;
+use factotum::executor::{ExecutionState, ExecutionUpdate, Transition,
+                         JobTransition as ExecutorJobTransition,
+                         TaskTransition as ExecutorTaskTransition};
 use factotum::webhook::jobcontext::JobContext;
 use chrono::UTC;
+use factotum::tests::make_task;
+use factotum::factfile::Factfile;
+use factotum::executor::task_list::State;
+use factotum::executor::{get_task_execution_list, get_task_snapshot};
 
 #[test]
-fn to_json_valid_against_schema() {
-    let schema = include_str!("../../../../tests/resources/job_update/json_schema_self_desc.json");
+fn to_json_valid_against_schema_job_transition() {
+    let schema = include_str!("../../../../tests/resources/job_update/job_transition_self_desc.\
+                               json");
     let context = JobContext::new("hello", "world");
-    let job_update = JobUpdate::new(&context, &ExecutionState::Finished(vec![]));
+    let exec_update =
+        ExecutionUpdate::new(ExecutionState::Finished,
+                             vec![],
+                             Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
+                                                                   ExecutionState::Finished)));
+    let job_update = JobUpdate::new(&context, &exec_update);
     let json_wrapped = job_update.as_self_desc_json();
+    println!("{}", json_wrapped);
+    let result = schemavalidator::validate_schema(&json_wrapped, schema);
+    match result {
+        Ok(_) => (), // happy path
+        Err(msg) => panic!("Failed to parse job update: {}", msg),
+    }
+}
+
+#[test]
+fn to_json_valid_against_schema_task_transition_running_to_failed() {
+    let schema = include_str!("../../../../tests/resources/job_update/task_transition_self_desc.\
+                               json");
+
+    let mut ff = Factfile::new("N/A", "test");
+    ff.add_task_obj(&make_task("apple", &vec![]));
+    ff.add_task_obj(&make_task("turnip", &vec![]));
+    ff.add_task_obj(&make_task("orange", &vec!["apple"]));
+    ff.add_task_obj(&make_task("egg", &vec!["apple"]));
+    ff.add_task_obj(&make_task("potato", &vec!["apple", "egg"]));
+    ff.add_task_obj(&make_task("chicken", &vec!["potato", "orange"]));
+
+    let mut tasks = get_task_snapshot(&get_task_execution_list(&ff, None));
+
+    let context = JobContext::new("hello", "world");
+
+    for mut task in tasks.iter_mut() {
+        task.state = State::Failed("a reason".to_string());
+    }
+
+    let transitions = tasks.iter()
+        .map(|task| {
+            ExecutorTaskTransition::new(&task.name,
+                                        State::Running,
+                                        State::Failed("a reason".to_string()))
+        })
+        .collect();
+
+    let exec_update = ExecutionUpdate::new(ExecutionState::Finished,
+                                           tasks,
+                                           Transition::Task(transitions));
+
+    let job_update = JobUpdate::new(&context, &exec_update);
+    let json_wrapped = job_update.as_self_desc_json();
+
+    println!("{}", json_wrapped);
+    let result = schemavalidator::validate_schema(&json_wrapped, schema);
+    match result {
+        Ok(_) => (), // happy path
+        Err(msg) => panic!("Failed to parse job update: {}", msg),
+    }
+}
+
+
+#[test]
+fn to_json_valid_against_schema_task_transition_waiting_to_running() {
+    let schema = include_str!("../../../../tests/resources/job_update/task_transition_self_desc.\
+                               json");
+
+    let mut ff = Factfile::new("N/A", "test");
+    ff.add_task_obj(&make_task("apple", &vec![]));
+    ff.add_task_obj(&make_task("turnip", &vec![]));
+    ff.add_task_obj(&make_task("orange", &vec!["apple"]));
+    ff.add_task_obj(&make_task("egg", &vec!["apple"]));
+    ff.add_task_obj(&make_task("potato", &vec!["apple", "egg"]));
+    ff.add_task_obj(&make_task("chicken", &vec!["potato", "orange"]));
+
+    let mut tasks = get_task_snapshot(&get_task_execution_list(&ff, None));
+
+    let context = JobContext::new("hello", "world");
+
+    for mut task in tasks.iter_mut() {
+        task.state = State::Running;
+    }
+
+    let transitions = tasks.iter()
+        .map(|task| ExecutorTaskTransition::new(&task.name, State::Waiting, State::Running))
+        .collect();
+
+    let exec_update = ExecutionUpdate::new(ExecutionState::Running,
+                                           tasks,
+                                           Transition::Task(transitions));
+
+    let job_update = JobUpdate::new(&context, &exec_update);
+    let json_wrapped = job_update.as_self_desc_json();
+    println!("{}", json_wrapped);
+
     let result = schemavalidator::validate_schema(&json_wrapped, schema);
     match result {
         Ok(_) => (), // happy path
@@ -33,14 +131,19 @@ fn to_json_valid_against_schema() {
 
 #[test]
 fn to_task_states_empty() {
-    let empty = ExecutionState::Finished(vec![]);
+    let empty = vec![];
     assert!(JobUpdate::to_task_states(&empty).is_empty());
 }
 
 #[test]
 fn headers_correct() {
     let context = JobContext::new("hello", "world");
-    let job_update = JobUpdate::new(&context, &ExecutionState::Finished(vec![]));
+    let exec_update =
+        ExecutionUpdate::new(ExecutionState::Finished,
+                             vec![],
+                             Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
+                                                                ExecutionState::Finished)));
+    let job_update = JobUpdate::new(&context, &exec_update);
 
     assert_eq!(context.job_reference, job_update.jobReference);
     assert_eq!(context.run_reference, job_update.runReference);
@@ -55,13 +158,43 @@ fn headers_correct() {
 }
 
 #[test]
+fn failed_headers_correct() {
+    let mut ff = Factfile::new("N/A", "test");
+    ff.add_task_obj(&make_task("apple", &vec![]));
+    ff.add_task_obj(&make_task("turnip", &vec![]));
+    ff.add_task_obj(&make_task("orange", &vec!["apple"]));
+    ff.add_task_obj(&make_task("egg", &vec!["apple"]));
+    ff.add_task_obj(&make_task("potato", &vec!["apple", "egg"]));
+    ff.add_task_obj(&make_task("chicken", &vec!["potato", "orange"]));
+
+    let mut tasks = get_task_snapshot(&get_task_execution_list(&ff, None));
+
+    for mut task in tasks.iter_mut() {
+        task.state = State::Failed("a reason".to_string());
+    }
+
+    let context = JobContext::new("hello", "world");
+    let exec_update =
+        ExecutionUpdate::new(ExecutionState::Finished,
+                             tasks,
+                             Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
+                                                                ExecutionState::Finished)));
+    let upd = JobUpdate::new(&context, &exec_update);
+
+    assert_eq!(upd.runState, JobRunState::FAILED);
+}
+
+#[test]
 fn task_states_converted_no_run_data() {
     use factotum::executor::task_list::Task;
     use factotum::tests::make_task;
 
     let example_tasks = vec![Task::new("chocolate", make_task("hello", &vec![]))];
-
-    let start_sample = ExecutionState::Started(example_tasks);
+    let start_sample =
+        ExecutionUpdate::new(ExecutionState::Started,
+                             example_tasks,
+                             Transition::Job(ExecutorJobTransition::new(None,
+                                                                        ExecutionState::Started)));
 
     let context = JobContext::new("hello", "world");
     let job_update = JobUpdate::new(&context, &start_sample);
@@ -114,7 +247,11 @@ fn task_states_converted_with_run_data() {
         duration: Duration::seconds(1).to_std().unwrap(),
     });
 
-    let start_sample = ExecutionState::Started(example_tasks);
+    let start_sample =
+        ExecutionUpdate::new(ExecutionState::Started,
+                             example_tasks,
+                             Transition::Job(ExecutorJobTransition::new(None,
+                                                                        ExecutionState::Started)));
 
     let context = JobContext::new("hello", "world");
     let job_update = JobUpdate::new(&context, &start_sample);
