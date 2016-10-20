@@ -21,6 +21,7 @@ use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use uuid::Uuid;
 use rustc_serialize::base64::{ToBase64, MIME};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub struct JobContext {
@@ -30,13 +31,25 @@ pub struct JobContext {
     pub factfile: String,
     pub factotum_version: String,
     pub start_time: DateTime<UTC>,
+    pub tags: HashMap<String,String>,
 }
 
 impl JobContext {
-    pub fn new<S: Into<String>>(job_name: S, factfile: &str) -> Self {
+    pub fn new<S: Into<String>>(job_name: S, factfile: &str, tags:Option<HashMap<String,String>>) -> Self {
         let ff = factfile;
+        
         let mut job_digest = Sha256::new();
         job_digest.input_str(&ff);
+
+        if let Some(ref tags_map) = tags {
+            let mut sorted_keys:Vec<_> = tags_map.keys().collect();
+            sorted_keys.sort();
+            for key in sorted_keys {
+                job_digest.input_str(key);
+                job_digest.input_str(&tags_map[key]);
+            }
+        }
+
         let job_ref = job_digest.result_str();
 
         let mut run_digest = Sha256::new();
@@ -47,6 +60,12 @@ impl JobContext {
         config.line_length = None;
         let b64_ff = ff.as_bytes().to_base64(config);
 
+        let job_tags = if let Some(t) = tags {
+            t
+        } else {
+            HashMap::new()
+        };
+
         JobContext {
             job_name: job_name.into(),
             job_reference: job_ref,
@@ -54,6 +73,7 @@ impl JobContext {
             factfile: b64_ff,
             factotum_version: env!("CARGO_PKG_VERSION").to_string(),
             start_time: UTC::now(),
+            tags: job_tags,
         }
     }
 }

@@ -23,12 +23,13 @@ use factotum::tests::make_task;
 use factotum::factfile::Factfile;
 use factotum::executor::task_list::State;
 use factotum::executor::{get_task_execution_list, get_task_snapshot};
+use std::collections::HashMap;
 
 #[test]
 fn to_json_valid_against_schema_job_transition() {
     let schema = include_str!("../../../../tests/resources/job_update/job_transition_self_desc.\
                                json");
-    let context = JobContext::new("hello", "world");
+    let context = JobContext::new("hello", "world", None);
     let exec_update =
         ExecutionUpdate::new(ExecutionState::Finished,
                              vec![],
@@ -59,7 +60,7 @@ fn to_json_valid_against_schema_task_transition_running_to_failed() {
 
     let mut tasks = get_task_snapshot(&get_task_execution_list(&ff, None));
 
-    let context = JobContext::new("hello", "world");
+    let context = JobContext::new("hello", "world", None);
 
     for mut task in tasks.iter_mut() {
         task.state = State::Failed("a reason".to_string());
@@ -104,7 +105,7 @@ fn to_json_valid_against_schema_task_transition_waiting_to_running() {
 
     let mut tasks = get_task_snapshot(&get_task_execution_list(&ff, None));
 
-    let context = JobContext::new("hello", "world");
+    let context = JobContext::new("hello", "world", None);
 
     for mut task in tasks.iter_mut() {
         task.state = State::Running;
@@ -137,7 +138,9 @@ fn to_task_states_empty() {
 
 #[test]
 fn headers_correct() {
-    let context = JobContext::new("hello", "world");
+    let mut tags = HashMap::new();
+    tags.insert("x".into(), "y".into());
+    let context = JobContext::new("hello", "world", Some(tags.clone()));
     let exec_update =
         ExecutionUpdate::new(ExecutionState::Finished,
                              vec![],
@@ -155,6 +158,7 @@ fn headers_correct() {
     assert_eq!(job_update.startTime.len(), UTC::now().to_rfc3339().len());
     assert!(job_update.runDuration.contains("PT0"));
     assert!(job_update.taskStates.len() == 0);
+    assert_eq!(job_update.tags, tags);
 }
 
 #[test]
@@ -173,7 +177,7 @@ fn failed_headers_correct() {
         task.state = State::Failed("a reason".to_string());
     }
 
-    let context = JobContext::new("hello", "world");
+    let context = JobContext::new("hello", "world", None);
     let exec_update =
         ExecutionUpdate::new(ExecutionState::Finished,
                              tasks,
@@ -196,7 +200,7 @@ fn task_states_converted_no_run_data() {
                              Transition::Job(ExecutorJobTransition::new(None,
                                                                         ExecutionState::Started)));
 
-    let context = JobContext::new("hello", "world");
+    let context = JobContext::new("hello", "world", None);
     let job_update = JobUpdate::new(&context, &start_sample);
 
     let expected_state = TaskUpdate {
@@ -253,7 +257,7 @@ fn task_states_converted_with_run_data() {
                              Transition::Job(ExecutorJobTransition::new(None,
                                                                         ExecutionState::Started)));
 
-    let context = JobContext::new("hello", "world");
+    let context = JobContext::new("hello", "world", None);
     let job_update = JobUpdate::new(&context, &start_sample);
 
     let expected_states = vec![TaskUpdate {

@@ -29,6 +29,7 @@ use rustc_serialize::Encodable;
 use rustc_serialize;
 use rustc_serialize::json::{self, ToJson, Json};
 use factotum::executor::task_list::State;
+use std::collections::HashMap;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, PartialEq)]
 pub enum JobRunState {
@@ -212,6 +213,7 @@ pub struct JobUpdate {
     transition: Option<JobTransition>,
     transitions: Option<Vec<TaskTransition>>,
     taskStates: Vec<TaskUpdate>,
+    tags: HashMap<String,String>
 }
 
 impl JobUpdate {
@@ -222,6 +224,7 @@ impl JobUpdate {
             runReference: context.run_reference.clone(),
             factfile: context.factfile.clone(),
             applicationContext: ApplicationContext::new(&context),
+            tags: context.tags.clone(),
             runState: to_job_run_state(&execution_update.execution_state,
                                        &execution_update.task_snapshot),
             startTime: context.start_time.to_rfc3339(),
@@ -272,8 +275,8 @@ impl JobUpdate {
     pub fn as_self_desc_json(&self) -> String {
         let wrapped = SelfDescribingWrapper {
             schema: match self.transition {
-                Some(_) => JOB_UPDATE_SCHEMA_NAME.to_string(),
-                None => TASK_UPDATE_SCHEMA_NAME.to_string(),
+                Some(_) => JOB_UPDATE_SCHEMA_NAME.into(),
+                None => TASK_UPDATE_SCHEMA_NAME.into(),
             },
             data: &self,
         };
@@ -354,23 +357,25 @@ impl ToJson for JobUpdate {
 
         let mut d = BTreeMap::new();
 
-        d.insert("jobName".to_string(), self.jobName.to_json());
-        d.insert("jobReference".to_string(), self.jobReference.to_json());
-        d.insert("runReference".to_string(), self.runReference.to_json());
-        d.insert("factfile".to_string(), self.factfile.to_json());
+        d.insert("jobName".into(), self.jobName.to_json());
+        d.insert("jobReference".into(), self.jobReference.to_json());
+        d.insert("runReference".into(), self.runReference.to_json());
+        d.insert("factfile".into(), self.factfile.to_json());
 
-        d.insert("applicationContext".to_string(),
+        d.insert("applicationContext".into(),
                  Json::from_str(&json::encode(&self.applicationContext).unwrap()).unwrap());
 
-        d.insert("runState".to_string(),
+        d.insert("runState".into(),
                  Json::from_str(&json::encode(&self.runState).unwrap()).unwrap());
 
-        d.insert("startTime".to_string(), self.startTime.to_json());
-        d.insert("runDuration".to_string(), self.runDuration.to_json());
+        d.insert("startTime".into(), self.startTime.to_json());
+        d.insert("runDuration".into(), self.runDuration.to_json());
+
+        d.insert("tags".into(), self.tags.to_json());
 
         match self.transition {
             Some(ref job_transition) => {
-                d.insert("jobTransition".to_string(),
+                d.insert("jobTransition".into(),
                          Json::from_str(&json::encode(&job_transition).unwrap()).unwrap());
             }
             None => {}
@@ -378,13 +383,13 @@ impl ToJson for JobUpdate {
 
         match self.transitions {
             Some(ref task_transition) => {
-                d.insert("taskTransitions".to_string(),
+                d.insert("taskTransitions".into(),
                          Json::from_str(&json::encode(&task_transition).unwrap()).unwrap());
             } 
             None => {}
         }
 
-        d.insert("taskStates".to_string(),
+        d.insert("taskStates".into(),
                  Json::from_str(&json::encode(&self.taskStates).unwrap()).unwrap());
 
         Json::Object(d)

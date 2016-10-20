@@ -46,7 +46,7 @@ fn backoff_retry_1min_good() {
 
 #[test]
 fn webhook_object_constructed_good() {
-    let wh = Webhook::new("job_name", "hello", "https://goodplace.com");
+    let wh = Webhook::new("job_name", "hello", "https://goodplace.com", None);
     assert_eq!("hello", wh.factfile_json);
     assert_eq!("https://goodplace.com", wh.endpoint);
     assert_eq!("job_name", wh.factfile_job_name);
@@ -54,7 +54,7 @@ fn webhook_object_constructed_good() {
 
 #[test]
 fn finish_stops_thread() {
-    let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com");
+    let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com", None);
     let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
     let jh = wh.connect_webhook(rx, mock_200_ok, zero_backoff);
     let sent_state =
@@ -91,7 +91,7 @@ fn make_mock_run() -> Vec<ExecutionUpdate> {
 
 #[test]
 fn multiple_messages_sent() {
-    let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com");
+    let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com", None);
     let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
     let jh = wh.connect_webhook(rx, mock_200_ok, zero_backoff);
 
@@ -114,7 +114,7 @@ fn multiple_messages_sent() {
 
 #[test]
 fn failures_tried_three_times() {
-    let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com");
+    let mut wh = Webhook::new("job_name", "hello", "https://goodplace.com", None);
     let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
     let jh = wh.connect_webhook(rx, mock_500_err, zero_backoff);
 
