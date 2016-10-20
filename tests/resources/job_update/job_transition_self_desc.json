@@ -47,7 +47,7 @@
           "enum": [
             "RUNNING",
             "WAITING",
-            "COMPLETED",
+            "SUCCEEDED",
             "FAILED"
           ]
         },
@@ -65,7 +65,7 @@
               "enum": [ 
                 "RUNNING",
                 "WAITING",
-                "COMPLETED",
+                "SUCCEEDED",
                 "FAILED"
               ]
             },
@@ -73,7 +73,7 @@
               "enum": [
                 "RUNNING",
                 "WAITING",
-                "COMPLETED",
+                "SUCCEEDED",
                 "FAILED"
               ]
             }
@@ -96,7 +96,8 @@
                 "enum": [
                   "RUNNING",
                   "WAITING",
-                  "COMPLETED",
+                  "SUCCEEDED",
+                  "SUCCEEDED_NO_OP",
                   "FAILED",
                   "SKIPPED"
                 ]

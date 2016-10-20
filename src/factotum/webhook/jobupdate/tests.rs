@@ -151,7 +151,7 @@ fn headers_correct() {
     assert_eq!(context.factfile, job_update.factfile);
     assert_eq!(context.factotum_version,
                job_update.applicationContext.version);
-    assert_eq!(job_update.runState, JobRunState::COMPLETED);
+    assert_eq!(job_update.runState, JobRunState::SUCCEEDED);
     assert_eq!(job_update.startTime.len(), UTC::now().to_rfc3339().len());
     assert!(job_update.runDuration.contains("PT0"));
     assert!(job_update.taskStates.len() == 0);
@@ -268,7 +268,7 @@ fn task_states_converted_with_run_data() {
                                },
                                TaskUpdate {
                                    taskName: "toffee".to_string(),
-                                   state: TaskRunState::COMPLETED,
+                                   state: TaskRunState::SUCCEEDED,
                                    started: Some(now.to_rfc3339()),
                                    duration: Some(Duration::seconds(1).to_string()),
                                    stdout: None,
