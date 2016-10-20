@@ -1,0 +1,169 @@
+{
+  "$schema": "http://iglucentral.com/schemas/com.snowplowanalytics.self-desc/schema/jsonschema/1-0-0#",
+  "self": {
+    "vendor": "com.snowplowanalytics.factotum",
+    "name": "job_update",
+    "version": "1-0-0",
+    "format": "jsonschema"
+  },
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "pattern": "^iglu:[a-zA-Z0-9-_.]+/[a-zA-Z0-9-_]+/[a-zA-Z0-9-_]+/[0-9]+-[0-9]+-[0-9]+$"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "jobName": {
+          "type": "string"
+        },
+        "runReference": {
+          "type": "string"
+        },
+        "factfile": {
+          "type": "string"
+        },
+        "applicationContext": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string",
+              "pattern": "\\d+\\.\\d+\\.\\d+-?.*"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "version", "name"
+          ],
+          "additionalProperties": false
+        },
+        "jobReference": {
+          "type": "string"
+        },
+        "tags": {
+            "type": "object",
+            "patternProperties":{
+              ".*":{
+                "type":"string"
+              }
+            }
+        },
+        "runState": {
+          "enum": [
+            "RUNNING",
+            "WAITING",
+            "SUCCEEDED",
+            "FAILED"
+          ]
+        },
+        "startTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "runDuration": {
+          "type": "string"
+        },
+        "taskTransitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "taskName": {
+                "type": "string"
+              },
+              "previousState": {
+                "enum": [
+                  "RUNNING",
+                  "WAITING",
+                  "SUCCEEDED",
+                  "SUCCEEDED_NO_OP",
+                  "FAILED",
+                  "SKIPPED"
+                ]
+              }, 
+              "currentState": {
+                "enum": [
+                  "RUNNING",
+                  "WAITING",
+                  "SUCCEEDED",
+                  "SUCCEEDED_NO_OP",
+                  "FAILED",
+                  "SKIPPED"
+                ]
+              }
+            },
+            "required": [
+              "taskName",
+              "previousState",
+              "currentState"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "taskStates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "taskName": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "RUNNING",
+                  "WAITING",
+                  "SUCCEEDED",
+                  "SUCCEEDED_NO_OP",
+                  "FAILED",
+                  "SKIPPED"
+                ]
+              },
+              "started": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "duration": {
+                "type": "string"
+              },
+              "stdout": {
+                "type": "string"
+              },
+              "stderr": {
+                "type": "string"
+              },
+              "returnCode": {
+                "type": "integer",
+                "maximum": 32767,
+                "minimum": -32767
+              },
+              "error_message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "taskName",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "jobName",
+        "jobReference",
+        "runReference",
+        "runState",
+        "factfile",
+        "applicationContext",
+        "startTime",
+        "runDuration",
+        "taskStates",
+        "tags"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

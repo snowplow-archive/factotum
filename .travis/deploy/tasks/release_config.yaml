@@ -1,0 +1,27 @@
+---
+# Required: local settings
+local:
+  root_dir : <%= ENV['TRAVIS_BUILD_DIR'] %>
+  
+# Required: packages to be deployed
+targets:
+  - type     : "bintray" # Options: bintray
+    user     : <%= ENV['BINTRAY_SNOWPLOW_GENERIC_USER'] %>
+    password : <%= ENV['BINTRAY_SNOWPLOW_GENERIC_API_KEY'] %>
+    
+packages:
+  - repo     : "snowplow-generic"
+    name     : "factotum"
+    user_org : "snowplow"
+    publish  : true
+    override : false
+    continue_on_conflict : false
+    version  : <%= ENV['TRAVIS_TAG'] %>
+
+    # Required: Artifact
+    artifacts:
+      - prefix : "factotum_"
+        suffix : <%= ENV['RM_SUFFIX'] %>
+        type   : "zip"
+        binary_paths:
+          - target/release/factotum
