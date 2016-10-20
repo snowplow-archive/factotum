@@ -133,6 +133,16 @@ pub struct SelfDescribingWrapper<'a> {
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct ApplicationContext {
     version: String,
+    name: String
+}
+
+impl ApplicationContext {
+    pub fn new(context: &JobContext) -> Self {
+        ApplicationContext {
+            version: context.factotum_version.clone(),
+            name: "factotum".to_string()
+        }
+    }
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
@@ -208,7 +218,7 @@ impl JobUpdate {
             jobReference: context.job_reference.clone(),
             runReference: context.run_reference.clone(),
             factfile: context.factfile.clone(),
-            applicationContext: ApplicationContext { version: context.factotum_version.clone() },
+            applicationContext: ApplicationContext::new(&context),
             runState: to_job_run_state(&execution_update.execution_state,
                                        &execution_update.task_snapshot),
             startTime: context.start_time.to_rfc3339(),
