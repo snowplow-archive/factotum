@@ -30,10 +30,13 @@
             "version": {
               "type": "string",
               "pattern": "\\d+\\.\\d+\\.\\d+-?.*"
+            },
+            "name": {
+              "type": "string"
             }
           },
           "required": [
-            "version"
+            "version", "name"
           ],
           "additionalProperties": false
         },
