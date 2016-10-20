@@ -34,15 +34,18 @@ use factotum::executor::task_list::State;
 pub enum JobRunState {
     RUNNING,
     WAITING,
-    COMPLETED,
+    SUCCEEDED,
     FAILED,
 }
 
+#[allow(non_snake_case)]
+#[allow(non_camel_case_types)]
 #[derive(RustcDecodable, RustcEncodable, Debug, PartialEq)]
 pub enum TaskRunState {
     RUNNING,
     WAITING,
-    COMPLETED,
+    SUCCEEDED,
+    SUCCEEDED_NO_OP,
     FAILED,
     SKIPPED,
 }
@@ -180,7 +183,7 @@ fn to_job_run_state(state: &ExecutionState, tasks: &TaskSnapshot) -> JobRunState
             if failed_tasks {
                 JobRunState::FAILED
             } else {
-                JobRunState::COMPLETED
+                JobRunState::SUCCEEDED
             }
         }
         _ => JobRunState::RUNNING,
@@ -243,16 +246,16 @@ impl JobUpdate {
                                         State::Waiting => TaskRunState::WAITING,
                                         State::Running => TaskRunState::RUNNING,
                                         State::Skipped(_) => TaskRunState::SKIPPED,
-                                        State::Success => TaskRunState::COMPLETED,
-                                        State::SuccessNoop => TaskRunState::COMPLETED,
+                                        State::Success => TaskRunState::SUCCEEDED,
+                                        State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
                                         State::Failed(_) => TaskRunState::FAILED,
                                     },
                                     currentState: match t.to_state {
                                         State::Waiting => TaskRunState::WAITING,
                                         State::Running => TaskRunState::RUNNING,
                                         State::Skipped(_) => TaskRunState::SKIPPED,
-                                        State::Success => TaskRunState::COMPLETED,
-                                        State::SuccessNoop => TaskRunState::COMPLETED,
+                                        State::Success => TaskRunState::SUCCEEDED,
+                                        State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
                                         State::Failed(_) => TaskRunState::FAILED,
                                     },
                                 }
@@ -288,8 +291,8 @@ impl JobUpdate {
                         State::Waiting => TaskRunState::WAITING,
                         State::Running => TaskRunState::RUNNING,
                         State::Skipped(_) => TaskRunState::SKIPPED,
-                        State::Success => TaskRunState::COMPLETED,
-                        State::SuccessNoop => TaskRunState::COMPLETED,
+                        State::Success => TaskRunState::SUCCEEDED,
+                        State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
                         State::Failed(_) => TaskRunState::FAILED,
                     },
                     started: if let Some(ref r) = task.run_started {
