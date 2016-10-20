@@ -25,6 +25,7 @@ use factotum::executor::{ExecutionState, ExecutionUpdate};
 use std::time::Duration;
 use rand;
 use factotum::webhook::jobcontext::JobContext;
+use std::collections::HashMap;
 
 const MAX_RETRIES: usize = 3;
 
@@ -115,10 +116,10 @@ impl Webhook {
         }
     }
 
-    pub fn new<S: Into<String>>(factfile_job_name: S, factfile_json: S, endpoint: S) -> Self {
+    pub fn new<S: Into<String>>(factfile_job_name: S, factfile_json: S, endpoint: S, job_tags:Option<HashMap<String,String>>) -> Self {
         let ff_name: String = factfile_job_name.into();
         let ff_json: String = factfile_json.into();
-        let jc = jobcontext::JobContext::new(ff_name.clone(), &ff_json);
+        let jc = jobcontext::JobContext::new(ff_name.clone(), &ff_json, job_tags);
         Webhook {
             job_context: jc,
             factfile_job_name: ff_name,

@@ -2,7 +2,7 @@
   "$schema": "http://iglucentral.com/schemas/com.snowplowanalytics.self-desc/schema/jsonschema/1-0-0#",
   "self": {
     "vendor": "com.snowplowanalytics.factotum",
-    "name": "job_update",
+    "name": "task_update",
     "version": "1-0-0",
     "format": "jsonschema"
   },
@@ -42,6 +42,14 @@
         },
         "jobReference": {
           "type": "string"
+        },
+        "tags": {
+            "type": "object",
+            "patternProperties":{
+              ".*":{
+                "type":"string"
+              }
+            }
         },
         "runState": {
           "enum": [
@@ -131,7 +139,7 @@
                 "maximum": 32767,
                 "minimum": -32767
               },
-              "error_message": {
+              "errorMessage": {
                 "type": "string"
               }
             },
@@ -152,7 +160,8 @@
         "applicationContext",
         "startTime",
         "runDuration",
-        "taskStates"
+        "taskStates",
+        "tags"
       ],
       "additionalProperties": false
     }

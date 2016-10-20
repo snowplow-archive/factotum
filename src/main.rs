@@ -47,6 +47,7 @@ use hyper::Url;
 use std::sync::mpsc;
 #[cfg(test)]
 use std::fs::File;
+use std::collections::HashMap;
 
 mod factotum;
 
@@ -61,33 +62,23 @@ const USAGE: &'static str =
 Factotum.
 
 Usage:
-  factotum run <factfile> [--start=<start_task>] [--env=<env>] \
-     [--dry-run] [--no-colour] [--webhook=<url>]
+  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run] [--no-colour] [--webhook=<url>] [--tag=<tag>]...
   factotum validate <factfile> [--no-colour]
-  \
-     factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite] \
-     [--no-colour]
+  factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite] [--no-colour]
   factotum (-h | --help) [--no-colour]
-  factotum (-v | --version) \
-     [--no-colour]
+  factotum (-v | --version) [--no-colour]
 
 Options:
-  -h --help                 Show this screen.
-  -v --version              \
-     Display the version of Factotum and exit.
-  --start=<start_task>      Begin at specified \
-     task.
-  --env=<env>               Supply JSON to define mustache variables in Factfile.
-  \
-     --dry-run                 Pretend to execute a Factfile, showing the commands that would be \
-     executed. Can be used with other options.
-  --output=<output_file>    File to print output \
-     to. Used with `dot`.
-  --overwrite               Overwrite the output file if it exists.
-  \
-     --no-colour               Turn off ANSI terminal colours/formatting in output.
-  \
-     --webhook=<url>           Post updates on job execution to the specified URL.
+  -h --help                             Show this screen.
+  -v --version                          Display the version of Factotum and exit.
+  --start=<start_task>                  Begin at specified task.
+  --env=<env>                           Supply JSON to define mustache variables in Factfile.
+  --dry-run                             Pretend to execute a Factfile, showing the commands that would be executed. Can be used with other options.
+  --output=<output_file>                File to print output to. Used with `dot`.
+  --overwrite                           Overwrite the output file if it exists.
+  --no-colour                           Turn off ANSI terminal colours/formatting in output.
+  --webhook=<url>                       Post updates on job execution to the specified URL.
+  --tag=<tag>                           Add job metadata (tags).
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -99,6 +90,7 @@ struct Args {
     flag_overwrite: bool,
     flag_dry_run: bool,
     flag_no_colour: bool,
+    flag_tag: Option<Vec<String>>,
     arg_factfile: String,
     flag_version: bool,
     cmd_run: bool,
@@ -332,20 +324,23 @@ fn parse_file_and_simulate(factfile: &str, env: Option<String>, start_from: Opti
                                              continue_job: vec![0],
                                              terminate_early: vec![],
                                          }),
+                                         None,
                                          None)
 }
 
 fn parse_file_and_execute(factfile: &str,
                           env: Option<String>,
                           start_from: Option<String>,
-                          webhook_url: Option<String>)
+                          webhook_url: Option<String>,
+                          job_tags: Option<HashMap<String,String>>)
                           -> i32 {
     parse_file_and_execute_with_strategy(factfile,
                                          env,
                                          start_from,
                                          factotum::executor::execution_strategy::execute_os,
                                          OverrideResultMappings::None,
-                                         webhook_url)
+                                         webhook_url,
+                                         job_tags)
 }
 
 fn parse_file_and_execute_with_strategy<F>(factfile: &str,
@@ -353,7 +348,8 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                                            start_from: Option<String>,
                                            strategy: F,
                                            override_result_map: OverrideResultMappings,
-                                           webhook_url: Option<String>)
+                                           webhook_url: Option<String>,
+                                           job_tags: Option<HashMap<String,String>>)
                                            -> i32
     where F: Fn(&str, &mut Command) -> RunResult + Send + Sync + 'static + Copy
 {
@@ -375,7 +371,7 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
 
             let (maybe_updates_channel, maybe_join_handle) = if webhook_url.is_some() {
                 let url = webhook_url.unwrap();
-                let mut wh = Webhook::new(job.name.clone(), job.raw.clone(), url);
+                let mut wh = Webhook::new(job.name.clone(), job.raw.clone(), url, job_tags);
                 let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
                 let join_handle =
                     wh.connect_webhook(rx, Webhook::http_post, webhook::backoff_rand_1_minute);
@@ -504,10 +500,60 @@ fn write_to_file(filename: &str, contents: &str, overwrite: bool) -> Result<(), 
 }
 
 fn is_valid_url(url: &str) -> Result<(), String> {
-    match Url::parse(url) {
-        Ok(_) => Ok(()),
-        Err(msg) => Err(format!("{}", msg)),
+    if url.starts_with("http://") || url.starts_with("https://") {
+        match Url::parse(url) {
+            Ok(_) => Ok(()),
+            Err(msg) => Err(format!("{}", msg)),
+        }
+    } else {
+        Err("URL must begin with 'http://' or 'https://' to be used with Factotum webhooks".into())
     }
+}
+
+fn get_tag_map(args: &Vec<String>) -> HashMap<String,String> {
+    let mut arg_map: HashMap<String,String> = HashMap::new();
+
+    for arg in args.iter() {
+        let split = arg.split(",").collect::<Vec<&str>>();
+        if split.len() >= 2 && split[0].trim().is_empty() == false {
+           let key = split[0].trim().to_string();
+           let value = split[1..].join("").trim().to_string();
+           arg_map.insert(key, value);
+        } else if split.len() == 1 && split[0].trim().is_empty() == false {
+           let key = split[0].trim().to_string();
+           let value = "".to_string();
+           arg_map.insert(key,value);
+        } 
+    }
+
+    arg_map
+}
+
+#[test]
+fn test_tag_map() {
+    let easy = get_tag_map(&vec!["hello,world".to_string()]);
+    let mut expected_easy = HashMap::new();
+    expected_easy.insert("hello".to_string(), "world".to_string());
+    assert_eq!(easy, expected_easy);
+
+    let trim_leading_trailing = get_tag_map(&vec!["  hello   ,  world   ".to_string()]);
+    assert_eq!(trim_leading_trailing, expected_easy);
+
+    let missing_value = get_tag_map(&vec!["  hello   ".to_string()]);
+    let mut expected_missing_value = HashMap::new();
+    expected_missing_value.insert("hello".to_string(), "".to_string());
+    assert_eq!(missing_value, expected_missing_value);
+
+    let empty = get_tag_map(&vec![" ".to_string()]);
+    assert_eq!(empty, HashMap::new());
+
+    let empty_key = get_tag_map(&vec![" , asdas".to_string()]);
+    assert_eq!(empty_key, HashMap::new());
+
+    let with_comma = get_tag_map(&vec!["the rain,first,, wow,,".to_string()]);
+    let mut expected_comma = HashMap::new();
+    expected_comma.insert("the rain".to_string(), "first wow".to_string());
+    assert_eq!(with_comma, expected_comma);
 }
 
 fn get_log_config() -> Result<log4rs::config::Config, log4rs::config::Errors> {
@@ -543,6 +589,12 @@ fn factotum() -> i32 {
         }
     };
 
+    let tag_map = if let Some(tags) = args.flag_tag {
+        Some(get_tag_map(&tags))
+    } else {
+        None
+    };
+
     if args.flag_no_colour {
         env::set_var("CLICOLOR", "0");
     }
@@ -574,7 +626,8 @@ fn factotum() -> i32 {
             parse_file_and_execute(&args.arg_factfile,
                                    args.flag_env,
                                    args.flag_start,
-                                   args.flag_webhook)
+                                   args.flag_webhook,
+                                   tag_map)
         } else {
             parse_file_and_simulate(&args.arg_factfile, args.flag_env, args.flag_start)
         }
@@ -628,6 +681,16 @@ fn test_is_valid_url() {
     match is_valid_url("http://potato.com/") {
         Ok(_) => (),
         Err(_) => panic!("http://potato.com/ is a valid url"),
+    }
+
+    match is_valid_url("https://potato.com/") {
+        Ok(_) => (),
+        Err(_) => panic!("https://potato.com/ is a valid url"),
+    }
+
+    match is_valid_url("potato.com/") {
+        Ok(_) => panic!("no http/s?"),
+        Err(msg) => assert_eq!(msg, "URL must begin with 'http://' or 'https://' to be used with Factotum webhooks") // this is good
     }
 }
 

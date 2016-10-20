@@ -43,6 +43,14 @@
         "jobReference": {
           "type": "string"
         },
+        "tags": {
+            "type": "object",
+            "patternProperties":{
+              ".*":{
+                "type":"string"
+              }
+            }
+        },
         "runState": {
           "enum": [
             "RUNNING",
@@ -66,7 +74,8 @@
                 "RUNNING",
                 "WAITING",
                 "SUCCEEDED",
-                "FAILED"
+                "FAILED",
+                null
               ]
             },
             "currentState": {
@@ -120,7 +129,7 @@
                 "maximum": 32767,
                 "minimum": -32767
               },
-              "error_message": {
+              "errorMessage": {
                 "type": "string"
               }
             },
@@ -141,7 +150,8 @@
         "applicationContext",
         "startTime",
         "runDuration",
-        "taskStates"
+        "taskStates",
+        "tags"
       ],
       "additionalProperties": false
     }
