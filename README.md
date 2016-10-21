@@ -20,10 +20,10 @@ unzip factotum_0.3.0_linux_x86_64.zip
 ./factotum --version
 ```
 
-Factotum requires one argument, which is a **[factotum factfile](/README.md#factfile-format)** that describes the job to run. For example, to run the sample **[sleep.factfile](https://raw.githubusercontent.com/snowplow/factotum/release/0.3.0/samples/sleep.factfile)**:
+Factotum requires one argument, which is a **[factotum factfile](/README.md#factfile-format)** that describes the job to run. For example, to run the sample **[sleep.factfile](https://raw.githubusercontent.com/snowplow/factotum/master/samples/sleep.factfile)**:
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.3.0/samples/sleep.factfile
+wget https://raw.githubusercontent.com/snowplow/factotum/master/samples/sleep.factfile
 ./factotum run sleep.factfile
 ```
 Specifying variables in the job file can be done using `--env JSON` (or `-e JSON`). The `JSON` here is free-form and needs to correspond to the placeholders you've set in your job.
@@ -31,16 +31,16 @@ Specifying variables in the job file can be done using `--env JSON` (or `-e JSON
 For example, the following will print "hello world!":
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.3.0/samples/variables.factfile
+wget https://raw.githubusercontent.com/snowplow/factotum/master/samples/variables.factfile
 ./factotum run variables.factfile --env '{ "message": "hello world!" }'
 ```
 
 Starting from an arbitrary task can be done using the `--start TASK` or `-s TASK` arguments, where TASK is the name of the task you'd like to start at.
 
-For example, to start at the "echo beta" task in [this job](https://raw.githubusercontent.com/snowplow/factotum/release/0.3.0/samples/echo.factfile), you can run the following:
+For example, to start at the "echo beta" task in [this job](https://raw.githubusercontent.com/snowplow/factotum/master/samples/echo.factfile), you can run the following:
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.3.0/samples/echo.factfile
+wget https://raw.githubusercontent.com/snowplow/factotum/master/samples/echo.factfile
 ./factotum run echo.factfile --start "echo beta"
 ```
 
