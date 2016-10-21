@@ -95,20 +95,20 @@ fn parse_str(json: &str,
 }
 
 
-#[derive(RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable)]
 #[allow(dead_code)]
 struct SelfDescribingJson {
     schema: String,
     data: FactfileFormat,
 }
 
-#[derive(RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable)]
 struct FactfileFormat {
     name: String,
     tasks: Vec<FactfileTaskFormat>,
 }
 
-#[derive(RustcDecodable)]
+#[derive(RustcEncodable, RustcDecodable)]
 #[allow(non_snake_case)]
 struct FactfileTaskFormat {
     name: String,
@@ -119,7 +119,7 @@ struct FactfileTaskFormat {
     onResult: FactfileTaskResultFormat,
 }
 
-#[derive(RustcDecodable, Clone)]
+#[derive(RustcEncodable, RustcDecodable, Clone)]
 #[allow(non_snake_case)]
 struct FactfileTaskResultFormat {
     terminateJobWithSuccess: Vec<i32>,
@@ -131,8 +131,9 @@ fn parse_valid_json(file: &str,
                     overrides: OverrideResultMappings)
                     -> Result<factfile::Factfile, String> {
     let schema: SelfDescribingJson = try!(json::decode(file).map_err(|e| e.to_string()));
+    let compact_json:String = try!(json::encode(&schema).map_err(|e| e.to_string()));
     let decoded_json = schema.data;
-    let mut ff = factfile::Factfile::new(file, &decoded_json.name);
+    let mut ff = factfile::Factfile::new(compact_json, decoded_json.name.clone());
 
     for file_task in decoded_json.tasks.iter() {
         // TODO errs in here - ? add task should Result not panic!

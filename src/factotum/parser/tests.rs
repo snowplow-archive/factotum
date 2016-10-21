@@ -13,7 +13,7 @@
 //
 
 use factotum::parser::*;
-use rustc_serialize::json::Json;
+use rustc_serialize::json::{self, Json};
 
 #[inline]
 fn resource(name: &str) -> String {
@@ -110,6 +110,7 @@ fn invalid_must_continue() {
 
 #[test]
 fn valid_generates_factfile() {
+    use factotum::parser::SelfDescribingJson;
     let valid = resource("example_ok.factfile");
 
     if let Ok(factfile) = parse(&valid, None, OverrideResultMappings::None) {
@@ -129,7 +130,12 @@ fn valid_generates_factfile() {
         assert_eq!(task_three.depends_on, vec!["StorageLoader"]);
 
         let expected_raw = include_str!("../../../tests/resources/example_ok.factfile");
-        assert_eq!(factfile.raw, expected_raw);
+        // convert it into "compact" form 
+        let inflated: SelfDescribingJson = json::decode(expected_raw).unwrap();
+        let compacted: String = json::encode(&inflated).unwrap();
+        print!("raw:\n\n{}", &factfile.raw);
+        print!("\n\ncompacted:\n\n{}", &compacted);
+        assert_eq!(factfile.raw, compacted);
     } else {
         panic!("valid factfile example_ok.factfile should have parsed but didn't");
     }
