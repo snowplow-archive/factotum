@@ -155,7 +155,7 @@ fn headers_correct() {
     assert_eq!(context.factotum_version,
                job_update.applicationContext.version);
     assert_eq!(job_update.runState, JobRunState::SUCCEEDED);
-    assert_eq!(job_update.startTime.len(), UTC::now().to_rfc3339().len());
+    assert_eq!(job_update.startTime.len(), to_string_datetime(&UTC::now()).len());
     assert!(job_update.runDuration.contains("PT0"));
     assert!(job_update.taskStates.len() == 0);
     assert_eq!(job_update.tags, tags);
@@ -263,7 +263,7 @@ fn task_states_converted_with_run_data() {
     let expected_states = vec![TaskUpdate {
                                    taskName: "chocolate".to_string(),
                                    state: TaskRunState::FAILED,
-                                   started: Some(now.to_rfc3339()),
+                                   started: Some(to_string_datetime(&now)),
                                    duration: Some(Duration::seconds(0).to_string()),
                                    stdout: Some("get".to_string()),
                                    stderr: Some("banana".to_string()),
@@ -273,7 +273,7 @@ fn task_states_converted_with_run_data() {
                                TaskUpdate {
                                    taskName: "toffee".to_string(),
                                    state: TaskRunState::SUCCEEDED,
-                                   started: Some(now.to_rfc3339()),
+                                   started: Some(to_string_datetime(&now)),
                                    duration: Some(Duration::seconds(1).to_string()),
                                    stdout: None,
                                    stderr: None,
@@ -284,4 +284,17 @@ fn task_states_converted_with_run_data() {
     assert!(job_update.taskStates.is_empty() == false);
     assert_eq!(job_update.taskStates[0], expected_states[0]);
     assert_eq!(job_update.taskStates[1], expected_states[1]);
+}
+
+#[test]
+fn to_string_datetime_good() {
+    use chrono::TimeZone;
+    let sample = UTC.ymd(2014, 7, 8).and_hms_milli(9, 10, 11, 12);
+    assert_eq!("2014-07-08T09:10:11.012Z", to_string_datetime(&sample));
+}
+
+#[test]
+fn to_string_datetime_good_round_millis() {
+    let sample = UTC::now();
+    assert_eq!(sample.format("%FT%T%.3fZ").to_string(), to_string_datetime(&sample));
 }

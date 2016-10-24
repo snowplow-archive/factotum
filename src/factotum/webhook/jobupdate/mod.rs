@@ -23,7 +23,7 @@ static TASK_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
 use factotum::executor::{ExecutionState, ExecutionUpdate, TaskSnapshot,
                          Transition as ExecutorTransition};
 use super::jobcontext::JobContext;
-use chrono::UTC;
+use chrono::{self, UTC};
 use std::collections::BTreeMap;
 use rustc_serialize::Encodable;
 use rustc_serialize;
@@ -227,7 +227,7 @@ impl JobUpdate {
             tags: context.tags.clone(),
             runState: to_job_run_state(&execution_update.execution_state,
                                        &execution_update.task_snapshot),
-            startTime: context.start_time.to_rfc3339(),
+            startTime: to_string_datetime(&context.start_time),
             runDuration: (UTC::now() - context.start_time).to_string(),
             taskStates: JobUpdate::to_task_states(&execution_update.task_snapshot),
             transition: {
@@ -299,7 +299,7 @@ impl JobUpdate {
                         State::Failed(_) => TaskRunState::FAILED,
                     },
                     started: if let Some(ref r) = task.run_started {
-                        Some(r.to_rfc3339())
+                        Some(to_string_datetime(r))
                     } else {
                         None
                     },
@@ -396,4 +396,8 @@ impl ToJson for JobUpdate {
 
         Json::Object(d)
     }
+}
+
+pub fn to_string_datetime(datetime: &chrono::DateTime<UTC>) -> String {
+    datetime.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
