@@ -20,6 +20,8 @@ static JOB_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
 static TASK_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
                                                factotum/task_update/jsonschema/1-0-0";
 
+const MAX_STDOUT_STDERR_SIZE: usize = 10_000; // 10kb
+
 use factotum::executor::{ExecutionState, ExecutionUpdate, TaskSnapshot,
                          Transition as ExecutorTransition};
 use super::jobcontext::JobContext;
@@ -310,7 +312,7 @@ impl JobUpdate {
                     },
                     stdout: if let Some(ref r) = task.run_result {
                         if let Some(ref stdout) = r.stdout {
-                            Some(stdout.clone())
+                            Some(tail_n_chars(stdout, MAX_STDOUT_STDERR_SIZE).into())
                         } else {
                             None
                         }
@@ -319,7 +321,7 @@ impl JobUpdate {
                     },
                     stderr: if let Some(ref r) = task.run_result {
                         if let Some(ref stderr) = r.stderr {
-                            Some(stderr.clone())
+                            Some(tail_n_chars(stderr, MAX_STDOUT_STDERR_SIZE).into())
                         } else {
                             None
                         }
@@ -400,4 +402,16 @@ impl ToJson for JobUpdate {
 
 pub fn to_string_datetime(datetime: &chrono::DateTime<UTC>) -> String {
     datetime.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
+}
+
+pub fn tail_n_chars(s: &str, n: usize) -> &str {
+    if n < 1 {
+       ""
+    } else {
+        if let Some(v) = s.char_indices().rev().nth(n-1).map(|(i, _)| &s[i..]) {
+            v
+        } else {
+            s
+        }
+    }
 }

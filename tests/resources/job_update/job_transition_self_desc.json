@@ -22,7 +22,8 @@
           "type": "string"
         },
         "factfile": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 1000000
         },
         "applicationContext": {
           "type": "object",
@@ -119,10 +120,12 @@
                 "type": "string"
               },
               "stdout": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 10000                
               },
               "stderr": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 10000
               },
               "returnCode": {
                 "type": "integer",

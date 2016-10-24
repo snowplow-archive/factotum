@@ -24,6 +24,10 @@ use factotum::factfile::Factfile;
 use factotum::executor::task_list::State;
 use factotum::executor::{get_task_execution_list, get_task_snapshot};
 use std::collections::HashMap;
+use factotum::executor::task_list::Task;
+use factotum::executor::execution_strategy::RunResult;
+use chrono::Duration;
+
 
 #[test]
 fn to_json_valid_against_schema_job_transition() {
@@ -220,12 +224,6 @@ fn task_states_converted_no_run_data() {
 
 #[test]
 fn task_states_converted_with_run_data() {
-    use factotum::executor::task_list::State;
-    use factotum::executor::task_list::Task;
-    use factotum::tests::make_task;
-    use factotum::executor::execution_strategy::RunResult;
-    use chrono::Duration;
-
     let mut example_tasks = vec![Task::new("chocolate", make_task("hello", &vec![])),
                                  Task::new("toffee", make_task("boop", &vec![]))];
 
@@ -297,4 +295,147 @@ fn to_string_datetime_good() {
 fn to_string_datetime_good_round_millis() {
     let sample = UTC::now();
     assert_eq!(sample.format("%FT%T%.3fZ").to_string(), to_string_datetime(&sample));
+}
+
+fn make_n_char_string(n: usize) -> String {
+    use std::iter;
+    iter::repeat("X").take(n).collect()
+}
+
+#[test]
+fn make_n_char_string_good() {
+    assert_eq!(make_n_char_string(3), "XXX");
+}
+
+
+#[test]
+fn big_task_stdout_trimmed() {
+    let mut example_tasks = vec![Task::new("chocolate", make_task("hello", &vec![])),
+                                 Task::new("toffee", make_task("boop", &vec![]))];
+
+    let now = UTC::now();
+
+    let max_len = 10000;
+
+    example_tasks[0].state = State::Success;
+    example_tasks[0].run_started = Some(now.clone());
+    example_tasks[0].run_result = Some(RunResult {
+        return_code: -1,
+        task_execution_error: None,
+        stderr: None,
+        stdout: Some(format!("{}tail", make_n_char_string(20000))), // too long
+        duration: Duration::seconds(0).to_std().unwrap(),
+    });
+
+    example_tasks[1].state = State::Success;
+    example_tasks[1].run_started = Some(now.clone());
+    example_tasks[1].run_result = Some(RunResult {
+        return_code: 0,
+        task_execution_error: None,
+        stderr: None,
+        stdout: Some(format!("{}tail", make_n_char_string(max_len-"tail".len()))), // just fits
+        duration: Duration::seconds(1).to_std().unwrap(),
+    });
+
+
+    let start_sample =
+        ExecutionUpdate::new(ExecutionState::Started,
+                             example_tasks,
+                             Transition::Job(ExecutorJobTransition::new(None,
+                                                                        ExecutionState::Started)));
+
+    let context = JobContext::new("hello", "world", None);
+    let job_update = JobUpdate::new(&context, &start_sample);
+
+
+    let expected_str = format!("{}tail", make_n_char_string(max_len-"tail".len()));
+
+    assert!(job_update.taskStates.is_empty() == false);
+    assert_eq!(expected_str.len(), max_len);
+    let stdout_over_limit = if let Some(ref stdout) = job_update.taskStates[0].stdout {
+        stdout
+    } else {
+        panic!("unexpected: missing stdout over limit")
+    };
+    let stdout_inside_limit = if let Some(ref stdout) = job_update.taskStates[1].stdout {
+        stdout
+    } else {
+        panic!("unexpected: missing stdout over limit")
+    };
+    assert_eq!(stdout_over_limit, &expected_str); // trimmed from the last result back
+    assert_eq!(stdout_inside_limit, &expected_str);    
+}
+
+#[test]
+fn big_task_stderr_trimmed() {
+    let mut example_tasks = vec![Task::new("chocolate", make_task("hello", &vec![])),
+                                 Task::new("toffee", make_task("boop", &vec![]))];
+
+    let now = UTC::now();
+
+    let max_len = 10000;
+
+    example_tasks[0].state = State::Success;
+    example_tasks[0].run_started = Some(now.clone());
+    example_tasks[0].run_result = Some(RunResult {
+        return_code: -1,
+        task_execution_error: None,
+        stderr: Some(format!("{}tail", make_n_char_string(20000))), // too long,
+        stdout: None,
+        duration: Duration::seconds(0).to_std().unwrap(),
+    });
+
+    example_tasks[1].state = State::Success;
+    example_tasks[1].run_started = Some(now.clone());
+    example_tasks[1].run_result = Some(RunResult {
+        return_code: 0,
+        task_execution_error: None,
+        stderr: Some(format!("{}tail", make_n_char_string(max_len-"tail".len()))),
+        stdout: None, // just fits
+        duration: Duration::seconds(1).to_std().unwrap(),
+    });
+
+
+    let start_sample =
+        ExecutionUpdate::new(ExecutionState::Started,
+                             example_tasks,
+                             Transition::Job(ExecutorJobTransition::new(None,
+                                                                        ExecutionState::Started)));
+
+    let context = JobContext::new("hello", "world", None);
+    let job_update = JobUpdate::new(&context, &start_sample);
+
+
+    let expected_str = format!("{}tail", make_n_char_string(max_len-"tail".len()));
+
+    assert!(job_update.taskStates.is_empty() == false);
+    assert_eq!(expected_str.len(), max_len);
+    let stderr_over_limit = if let Some(ref stderr) = job_update.taskStates[0].stderr {
+        stderr
+    } else {
+        panic!("unexpected: missing stderr over limit")
+    };
+    let stderr_inside_limit = if let Some(ref stderr) = job_update.taskStates[1].stderr {
+        stderr
+    } else {
+        panic!("unexpected: missing stderr over limit")
+    };
+    assert_eq!(stderr_over_limit, &expected_str); // trimmed from the last result back
+    assert_eq!(stderr_inside_limit, &expected_str);  
+}
+
+#[test]
+fn tail_n_chars_good() {
+    let twenty_character_str = make_n_char_string(20);
+    assert_eq!(tail_n_chars(&twenty_character_str, 10).len(), 10);  
+    assert_eq!(tail_n_chars(&twenty_character_str, 21).len(), 20);  
+
+    let sample = "lorem ipsum egg";
+    assert_eq!(tail_n_chars(sample, 3), "egg");
+}
+
+#[test]
+fn tail_n_chars_zero() {
+    let twenty_character_str = make_n_char_string(20);
+    assert_eq!(tail_n_chars(&twenty_character_str, 0), "");
 }
