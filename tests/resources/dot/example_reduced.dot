@@ -1,0 +1,9 @@
+digraph "Sample job #3 (reduced run)" {
+    "turnip"
+    "milk"
+    "cake"
+    "cheese"
+    "turnip" -> "milk"
+    "milk" -> "cake"
+    "milk" -> "cheese"
+}

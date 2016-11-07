@@ -1,6 +1,6 @@
 # Factotum
 
-[![Build Status](https://travis-ci.org/snowplow/factotum.svg?branch=master)](https://travis-ci.org/snowplow/factotum) [![Release 0.2.0](http://img.shields.io/badge/release-0.2.0-blue.svg?style=flat)](https://github.com/snowplow/factotum/releases) [![Apache License 2.0](http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat)](http://www.apache.org/licenses/LICENSE-2.0)
+[![Build Status](https://travis-ci.org/snowplow/factotum.svg?branch=master)](https://travis-ci.org/snowplow/factotum) [![Release 0.3.0](http://img.shields.io/badge/release-0.3.0-blue.svg?style=flat)](https://github.com/snowplow/factotum/releases) [![Apache License 2.0](http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat)](http://www.apache.org/licenses/LICENSE-2.0)
 
 A dag running tool designed for efficiently running complex jobs with non-trivial dependency trees. 
 
@@ -15,33 +15,33 @@ A dag running tool designed for efficiently running complex jobs with non-trivia
 Assuming you're running **64 bit Linux**: 
 
 ```{bash}
-wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.2.0_linux_x86_64.zip
-unzip factotum_0.2.0_linux_x86_64.zip
-./factotum --help
+wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.3.0_linux_x86_64.zip
+unzip factotum_0.3.0_linux_x86_64.zip
+./factotum --version
 ```
 
-Factotum requires one argument, which is a **[factotum factfile](/README.md#factfile-format)** that describes the job to run. For example, to run the sample **[sleep.factotum](https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/sleep.factotum)**:
+Factotum requires one argument, which is a **[factotum factfile](/README.md#factfile-format)** that describes the job to run. For example, to run the sample **[sleep.factfile](https://raw.githubusercontent.com/snowplow/factotum/master/samples/sleep.factfile)**:
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/sleep.factotum
-./factotum sleep.factotum
+wget https://raw.githubusercontent.com/snowplow/factotum/master/samples/sleep.factfile
+./factotum run sleep.factfile
 ```
 Specifying variables in the job file can be done using `--env JSON` (or `-e JSON`). The `JSON` here is free-form and needs to correspond to the placeholders you've set in your job.
 
 For example, the following will print "hello world!":
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/variables.factotum
-./factotum variables.factotum --env '{ "message": "hello world!" }'
+wget https://raw.githubusercontent.com/snowplow/factotum/master/samples/variables.factfile
+./factotum run variables.factfile --env '{ "message": "hello world!" }'
 ```
 
 Starting from an arbitrary task can be done using the `--start TASK` or `-s TASK` arguments, where TASK is the name of the task you'd like to start at.
 
-For example, to start at the "echo beta" task in [this job](https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/echo.factotum), you can run the following:
+For example, to start at the "echo beta" task in [this job](https://raw.githubusercontent.com/snowplow/factotum/master/samples/echo.factfile), you can run the following:
 
 ```{bash}
-wget https://raw.githubusercontent.com/snowplow/factotum/release/0.2.0/samples/echo.factotum
-./factotum echo.factotum --start "echo beta"
+wget https://raw.githubusercontent.com/snowplow/factotum/master/samples/echo.factfile
+./factotum run echo.factfile --start "echo beta"
 ```
 
 To get a quick overview of the options provided, you can use the `--help` or `-h` argument:
@@ -118,7 +118,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
 * Set up a Vagrant box and ssh into it - `vagrant up && vagrant ssh`
    * This will take a few minutes
 * `cd /vagrant`
-* Compile and run a demo - `cargo run -- samples/echo.factotum` 
+* Compile and run a demo - `cargo run -- samples/echo.factfile` 
 
 ### Using stable Rust without Vagrant 
 
@@ -126,7 +126,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
    * on Linux/Mac - `curl -sSf https://static.rust-lang.org/rustup.sh | sh`
 * Clone this repository - `git clone git@github.com:snowplow/factotum.git`
 * `cd factotum`
-* Compile and run a demo - `cargo run -- samples/echo.factotum` 
+* Compile and run a demo - `cargo run -- samples/echo.factfile` 
 
 ## Copyright and license
 

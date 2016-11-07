@@ -1,0 +1,53 @@
+{
+    "schema": "iglu:com.snowplowanalytics.factotum/factfile/jsonschema/1-0-0",
+    "data": {
+        "name": "deploy factotum releases",
+        "tasks": [
+            {
+                "name": "is-candidate-arch",
+                "executor": "shell",
+                "command": ".travis/deploy/tasks/check_release.rb",
+                "arguments": [],
+                "dependsOn": [],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 2 ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "provision-release-manager",
+                "executor": "shell",
+                "command": ".travis/deploy/tasks/provision.sh",
+                "arguments": [],
+                "dependsOn": [ "is-candidate-arch" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "build-release-artifact",
+                "executor": "shell",
+                "command": ".travis/build.sh",
+                "arguments": [ "--release" ],
+                "dependsOn": [ "is-candidate-arch" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "ship-release-artifact",
+                "executor": "shell",
+                "command": ".travis/deploy/tasks/ship_release.sh",
+                "arguments": [],
+                "dependsOn": [ "build-release-artifact" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [],
+                    "continueJob": [ 0 ]
+                }
+            }
+
+        ]
+    }
+}

@@ -1,0 +1,13 @@
+digraph "Sample job" {
+    "turnip"
+    "apple"
+    "egg"
+    "orange"
+    "potato"
+    "chicken"
+    "apple" -> "egg"
+    "apple" -> "orange"
+    "egg" -> "potato"
+    "potato" -> "chicken"
+    "orange" -> "chicken"
+}
