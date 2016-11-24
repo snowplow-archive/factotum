@@ -25,6 +25,9 @@ extern crate rand;
 extern crate crypto;
 extern crate uuid;
 extern crate hyper;
+extern crate libc;
+extern crate ifaces;
+extern crate dns_lookup;
 
 use docopt::Docopt;
 use std::fs;
@@ -45,6 +48,7 @@ use std::fs::OpenOptions;
 use std::env;
 use hyper::Url;
 use std::sync::mpsc;
+use std::net;
 #[cfg(test)]
 use std::fs::File;
 use std::collections::HashMap;
@@ -56,13 +60,15 @@ const PROC_PARSE_ERROR: i32 = 1;
 const PROC_EXEC_ERROR: i32 = 2;
 const PROC_OTHER_ERROR: i32 = 3;
 
+const CONSTRAINT_HOST: &'static str = "host";
+
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const USAGE: &'static str =
     "
 Factotum.
 
 Usage:
-  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run] [--no-colour] [--webhook=<url>] [--tag=<tag>]...
+  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run] [--no-colour] [--webhook=<url>] [--tag=<tag>]... [--constraint=<constraint>]...
   factotum validate <factfile> [--no-colour]
   factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite] [--no-colour]
   factotum (-h | --help) [--no-colour]
@@ -79,6 +85,7 @@ Options:
   --no-colour                           Turn off ANSI terminal colours/formatting in output.
   --webhook=<url>                       Post updates on job execution to the specified URL.
   --tag=<tag>                           Add job metadata (tags).
+  --constraint=<constraint>             Checks for an external constraint that will prevent execution; allowed constraints (host).
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -91,6 +98,7 @@ struct Args {
     flag_dry_run: bool,
     flag_no_colour: bool,
     flag_tag: Option<Vec<String>>,
+    flag_constraint: Option<Vec<String>>,
     arg_factfile: String,
     flag_version: bool,
     cmd_run: bool,
@@ -510,6 +518,92 @@ fn is_valid_url(url: &str) -> Result<(), String> {
     }
 }
 
+fn get_constraint_map(constraints: &Vec<String>) -> HashMap<String,String> {
+    get_tag_map(constraints)
+}
+
+fn is_valid_host(host: &str) -> Result<(), String> {
+    if host == "*" {
+        return Ok(())
+    }
+
+    let os_hostname = try!(gethostname_safe().map_err(|e| e.to_string()));
+
+    if host == os_hostname { 
+        return Ok(()) 
+    }
+
+    let external_addrs = try!(get_external_addrs().map_err(|e| e.to_string()));
+    let host_addrs = try!(dns_lookup::lookup_host(&host).map_err(
+      |_| "could not find any IPv4 addresses for the supplied hostname"
+    ));
+
+    for host_addr in host_addrs {
+        if let Ok(good_host_addr) = host_addr {
+            if external_addrs.iter().any(|external_addr| external_addr.ip() == good_host_addr) {
+                return Ok(())
+            }
+        }
+    }
+
+    Err("failed to match any of the interface addresses to the found host addresses".into())
+}
+
+extern {
+    pub fn gethostname(name: *mut libc::c_char, size: libc::size_t) -> libc::c_int;
+}
+
+fn gethostname_safe() -> Result<String, String> {
+    let len = 255;
+    let mut buf = Vec::<u8>::with_capacity(len);
+
+    let ptr = buf.as_mut_slice().as_mut_ptr();
+
+    let err = unsafe {
+        gethostname(ptr as *mut libc::c_char, len as libc::size_t)
+    } as libc::c_int;
+
+    match err {
+        0 => {
+            let mut _real_len = len;
+            let mut i = 0;
+            loop {
+                let byte = unsafe { *(((ptr as u64) + (i as u64)) as *const u8) };
+                if byte == 0 {
+                    _real_len = i;
+                    break;
+                }
+                i += 1;
+            }
+            unsafe { buf.set_len(_real_len) }
+            Ok(String::from_utf8_lossy(buf.as_slice()).into_owned())
+        },
+        _ => {
+            Err("could not get hostname from system; cannot compare against supplied hostname".into())
+        }
+    }
+}
+
+fn get_external_addrs() -> Result<Vec<net::SocketAddr>, String> {
+    let mut external_addrs = vec![];
+
+    for iface in ifaces::Interface::get_all().unwrap().into_iter() {
+        if iface.kind == ifaces::Kind::Ipv4 {
+            if let Some(addr) = iface.addr {
+                if !addr.ip().is_loopback() {
+                    external_addrs.push(addr)
+                }
+            }
+        }
+    }
+
+    if external_addrs.len() == 0 {
+        Err("could not find any non-loopback IPv4 addresses in the network interfaces; do you have a working network interface card?".into())
+    } else {
+        Ok(external_addrs)
+    }
+}
+
 fn get_tag_map(args: &Vec<String>) -> HashMap<String,String> {
     let mut arg_map: HashMap<String,String> = HashMap::new();
 
@@ -622,6 +716,21 @@ fn factotum() -> i32 {
     }
 
     if args.cmd_run {
+        if let Some(constraints) = args.flag_constraint {
+            let c_map = get_constraint_map(&constraints);
+
+            if let Some(host_value) = c_map.get(CONSTRAINT_HOST) {
+                if let Err(msg) = is_valid_host(host_value) {
+                    println!("{}",
+                             format!("Info: the specifed host constraint \"{}\" did not match. Reason: {}",
+                                     host_value,
+                                     msg)
+                                 .red());
+                    return PROC_SUCCESS;
+                }
+            }
+        }
+    
         if !args.flag_dry_run {
             parse_file_and_execute(&args.arg_factfile,
                                    args.flag_env,
@@ -1133,5 +1242,37 @@ fn test_start_task_cycles() {
                        "the job cannot be started here without triggering prior tasks")
         }
         _ => unreachable!("the task validated when it shouldn't have"),
+    }
+}
+
+#[test]
+fn test_gethostname_safe() {
+    let hostname = gethostname_safe();
+    if let Ok(ok_hostname) = hostname {
+        assert!(!ok_hostname.is_empty());
+    } else {
+        panic!("gethostname_safe() must return a Ok(<String>)");
+    }
+}
+
+#[test]
+fn test_get_external_addrs() {
+    let external_addrs = get_external_addrs();
+    if let Ok(ok_external_addrs) = external_addrs {
+        assert!(ok_external_addrs.len() > 0);
+    } else {
+        panic!("get_external_addrs() must return a Ok(Vec<net::SocketAddr>) that is non-empty");
+    }
+}
+
+#[test]
+fn test_is_valid_host() {
+    is_valid_host("*").expect("must be Ok() for wildcard");
+
+    // Test each external addr is_valid_host
+    let external_addrs = get_external_addrs().expect("get_external_addrs() must return a Ok(Vec<net::SocketAddr>) that is non-empty");
+    for external_addr in external_addrs {
+        let ip_str = external_addr.ip().to_string();
+        is_valid_host(&ip_str).expect(&format!("must be Ok() for IP {}", &ip_str));
     }
 }
