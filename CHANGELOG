@@ -1,3 +1,8 @@
+Version 0.4.0 (2016-11-29)
+--------------------------
+Lock version for rust-mustache to 0.7.0 (#90)
+Add support for run constraints (#45)
+
 Version 0.3.0 (2016-11-07)
 --------------------------
 Add factotum -v / --version (#36)
