@@ -1,7 +1,7 @@
 [package]
 name = "factotum"
-version = "0.3.0"
-authors = ["Ed Lewis <support@snowplowanalytics.com>"]
+version = "0.4.0"
+authors = ["Ed Lewis <support@snowplowanalytics.com>", "Josh Beemster <support@snowplowanalytics.com>"]
 
 [dependencies]
 docopt = "0.6"
@@ -12,8 +12,11 @@ rustc-serialize = "0.3.18"
 valico = "0.8.2"
 chrono = "0.2"
 colored = "1.2"
-mustache = "*"
+mustache = "0.7.0"
 rand = "0.3"
 rust-crypto = "^0.2"
 uuid = { version = "0.2", features = ["v4"] }
 hyper = "0.9"
+libc = "0.2.17"
+ifaces = "0.0.3"
+dns-lookup = "0.2.1"
