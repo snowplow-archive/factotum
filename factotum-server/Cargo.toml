@@ -1,0 +1,27 @@
+[package]
+name = "factotum-server"
+version = "0.1.0"
+authors = ["Nicholas Ung <support@snowplowanalytics.com>"]
+
+[dependencies]
+log = "0.3"
+log4rs = "0.6"
+docopt = "0.7"
+getopts = "0.2"
+chrono = { version = "0.3", features = ["serde"] }
+lazy_static = "0.2"
+regex = "0.2"
+url = "1.4"
+rust-crypto = "^0.2"
+threadpool = "1.3"
+iron = "0.5"
+router = "0.5"
+bodyparser = "0.6"
+persistent = "0.3"
+logger = "0.3"
+rustc-serialize = "0.3"
+serde = "0.9"
+serde_derive = "0.9"
+serde_json = "0.9"
+consul = "0.0.6"
+base64 = "0.4"
