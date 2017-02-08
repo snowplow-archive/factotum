@@ -52,6 +52,7 @@ use std::net;
 #[cfg(test)]
 use std::fs::File;
 use std::collections::HashMap;
+use std::error::Error;
 
 mod factotum;
 
@@ -650,22 +651,39 @@ fn test_tag_map() {
     assert_eq!(with_comma, expected_comma);
 }
 
-fn get_log_config() -> Result<log4rs::config::Config, log4rs::config::Errors> {
-    let file_appender = log4rs::appender::FileAppender::builder(".factotum/factotum.log").build();
+fn get_log_config() -> Result<log4rs::config::Config, String> {    
+    let file_appender = match log4rs::appender::FileAppender::builder(".factotum/factotum.log").build() {
+        Ok(fa) => fa,
+        Err(e) => {
+            let cwd = env::current_dir().expect("Unable to get current working directory");
+            let expanded_path = format!("{}{}{}", cwd.display(), std::path::MAIN_SEPARATOR, ".factotum/factotum.log");
+            return Err(format!("couldn't create logfile appender to '{}'. Reason: {}", expanded_path, e.description()));
+        }
+    };
+
     let root = log4rs::config::Root::builder(log::LogLevelFilter::Info)
         .appender("file".to_string());
 
     log4rs::config::Config::builder(root.build())
         .appender(log4rs::config::Appender::builder("file".to_string(),
-                                                    Box::new(file_appender.unwrap()))
-            .build())
-        .build()
+                                                    Box::new(file_appender)).build())
+        .build().map_err(|e| format!("error setting logging. Reason: {}", e.description()))
 }
 
-fn init_logger() {
-    fs::create_dir(".factotum").ok();
-    let log_config = get_log_config();
-    log4rs::init_config(log_config.unwrap()).unwrap();
+fn init_logger() -> Result<(), String> {
+    match fs::create_dir(".factotum") {
+        Ok(_) => (),
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::AlreadyExists => (),
+            _ => {
+                let cwd = env::current_dir().expect("Unable to get current working directory");
+                let expected_path =  format!("{}{}{}{}", cwd.display(), std::path::MAIN_SEPARATOR, ".factotum", std::path::MAIN_SEPARATOR);
+                return Err(format!("unable to create directory '{}' for logfile. Reason: {}", expected_path, e.description()))
+            }
+        }
+    };
+    let log_config = try!(get_log_config());
+    log4rs::init_config(log_config).map_err(|e| format!("couldn't initialize log configuration. Reason: {}", e.description()))
 }
 
 fn main() {
@@ -673,7 +691,11 @@ fn main() {
 }
 
 fn factotum() -> i32 {
-    init_logger();
+
+    if let Err(log) = init_logger() {
+        println!("Log initialization error: {}", log);
+        return PROC_OTHER_ERROR;
+    }
 
     let args: Args = match Docopt::new(USAGE).and_then(|d| d.decode()) {
         Ok(a) => a,
