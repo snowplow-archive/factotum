@@ -341,7 +341,7 @@ fn parse_file_and_execute(factfile: &str,
                           env: Option<String>,
                           start_from: Option<String>,
                           webhook_url: Option<String>,
-                          job_tags: Option<HashMap<String,String>>)
+                          job_tags: Option<HashMap<String, String>>)
                           -> i32 {
     parse_file_and_execute_with_strategy(factfile,
                                          env,
@@ -358,7 +358,7 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                                            strategy: F,
                                            override_result_map: OverrideResultMappings,
                                            webhook_url: Option<String>,
-                                           job_tags: Option<HashMap<String,String>>)
+                                           job_tags: Option<HashMap<String, String>>)
                                            -> i32
     where F: Fn(&str, &mut Command) -> RunResult + Send + Sync + 'static + Copy
 {
@@ -494,12 +494,23 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
 }
 
 fn write_to_file(filename: &str, contents: &str, overwrite: bool) -> Result<(), String> {
-    let mut f = match OpenOptions::new()
-        .write(true)
-        .create_new(!overwrite)
-        .open(filename) {
-        Ok(f) => f,
-        Err(io) => return Err(format!("couldn't create file '{}' ({})", filename, io)),        
+    let mut f = if overwrite {
+        match OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(filename) {
+            Ok(f) => f,
+            Err(io) => return Err(format!("couldn't create file '{}' ({})", filename, io)),        
+        }
+    } else {
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(filename) {
+            Ok(f) => f,
+            Err(io) => return Err(format!("couldn't create file '{}' ({})", filename, io)),        
+        }
     };
 
     match f.write_all(contents.as_bytes()) {
@@ -519,30 +530,29 @@ fn is_valid_url(url: &str) -> Result<(), String> {
     }
 }
 
-fn get_constraint_map(constraints: &Vec<String>) -> HashMap<String,String> {
+fn get_constraint_map(constraints: &Vec<String>) -> HashMap<String, String> {
     get_tag_map(constraints)
 }
 
 fn is_valid_host(host: &str) -> Result<(), String> {
     if host == "*" {
-        return Ok(())
+        return Ok(());
     }
 
     let os_hostname = try!(gethostname_safe().map_err(|e| e.to_string()));
 
-    if host == os_hostname { 
-        return Ok(()) 
+    if host == os_hostname {
+        return Ok(());
     }
 
     let external_addrs = try!(get_external_addrs().map_err(|e| e.to_string()));
-    let host_addrs = try!(dns_lookup::lookup_host(&host).map_err(
-      |_| "could not find any IPv4 addresses for the supplied hostname"
-    ));
+    let host_addrs = try!(dns_lookup::lookup_host(&host)
+        .map_err(|_| "could not find any IPv4 addresses for the supplied hostname"));
 
     for host_addr in host_addrs {
         if let Ok(good_host_addr) = host_addr {
             if external_addrs.iter().any(|external_addr| external_addr.ip() == good_host_addr) {
-                return Ok(())
+                return Ok(());
             }
         }
     }
@@ -550,7 +560,7 @@ fn is_valid_host(host: &str) -> Result<(), String> {
     Err("failed to match any of the interface addresses to the found host addresses".into())
 }
 
-extern {
+extern "C" {
     pub fn gethostname(name: *mut libc::c_char, size: libc::size_t) -> libc::c_int;
 }
 
@@ -560,9 +570,7 @@ fn gethostname_safe() -> Result<String, String> {
 
     let ptr = buf.as_mut_slice().as_mut_ptr();
 
-    let err = unsafe {
-        gethostname(ptr as *mut libc::c_char, len as libc::size_t)
-    } as libc::c_int;
+    let err = unsafe { gethostname(ptr as *mut libc::c_char, len as libc::size_t) } as libc::c_int;
 
     match err {
         0 => {
@@ -578,9 +586,10 @@ fn gethostname_safe() -> Result<String, String> {
             }
             unsafe { buf.set_len(_real_len) }
             Ok(String::from_utf8_lossy(buf.as_slice()).into_owned())
-        },
+        }
         _ => {
-            Err("could not get hostname from system; cannot compare against supplied hostname".into())
+            Err("could not get hostname from system; cannot compare against supplied hostname"
+                .into())
         }
     }
 }
@@ -599,26 +608,28 @@ fn get_external_addrs() -> Result<Vec<net::SocketAddr>, String> {
     }
 
     if external_addrs.len() == 0 {
-        Err("could not find any non-loopback IPv4 addresses in the network interfaces; do you have a working network interface card?".into())
+        Err("could not find any non-loopback IPv4 addresses in the network interfaces; do you \
+             have a working network interface card?"
+            .into())
     } else {
         Ok(external_addrs)
     }
 }
 
-fn get_tag_map(args: &Vec<String>) -> HashMap<String,String> {
-    let mut arg_map: HashMap<String,String> = HashMap::new();
+fn get_tag_map(args: &Vec<String>) -> HashMap<String, String> {
+    let mut arg_map: HashMap<String, String> = HashMap::new();
 
     for arg in args.iter() {
         let split = arg.split(",").collect::<Vec<&str>>();
         if split.len() >= 2 && split[0].trim().is_empty() == false {
-           let key = split[0].trim().to_string();
-           let value = split[1..].join("").trim().to_string();
-           arg_map.insert(key, value);
+            let key = split[0].trim().to_string();
+            let value = split[1..].join("").trim().to_string();
+            arg_map.insert(key, value);
         } else if split.len() == 1 && split[0].trim().is_empty() == false {
-           let key = split[0].trim().to_string();
-           let value = "".to_string();
-           arg_map.insert(key,value);
-        } 
+            let key = split[0].trim().to_string();
+            let value = "".to_string();
+            arg_map.insert(key, value);
+        }
     }
 
     arg_map
@@ -744,7 +755,8 @@ fn factotum() -> i32 {
             if let Some(host_value) = c_map.get(CONSTRAINT_HOST) {
                 if let Err(msg) = is_valid_host(host_value) {
                     println!("{}",
-                             format!("Warn: the specifed host constraint \"{}\" did not match, no tasks have been executed. Reason: {}",
+                             format!("Warn: the specifed host constraint \"{}\" did not match, \
+                                      no tasks have been executed. Reason: {}",
                                      host_value,
                                      msg)
                                  .yellow());
@@ -752,7 +764,7 @@ fn factotum() -> i32 {
                 }
             }
         }
-    
+
         if !args.flag_dry_run {
             parse_file_and_execute(&args.arg_factfile,
                                    args.flag_env,
@@ -821,7 +833,11 @@ fn test_is_valid_url() {
 
     match is_valid_url("potato.com/") {
         Ok(_) => panic!("no http/s?"),
-        Err(msg) => assert_eq!(msg, "URL must begin with 'http://' or 'https://' to be used with Factotum webhooks") // this is good
+        Err(msg) => {
+            assert_eq!(msg,
+                       "URL must begin with 'http://' or 'https://' to be used with Factotum \
+                        webhooks")
+        } // this is good
     }
 }
 
@@ -852,6 +868,11 @@ fn test_write_to_file() {
 
     assert_eq!(contents, "helloworld all");
 
+    assert!(fs::remove_file(test_path).is_ok());
+
+    // check that overwrite will also write a new file (https://github.com/snowplow/factotum/issues/97)
+
+    assert!(write_to_file(test_path, "overwrite test", true).is_ok());
     assert!(fs::remove_file(test_path).is_ok());
 }
 
@@ -1292,7 +1313,8 @@ fn test_is_valid_host() {
     is_valid_host("*").expect("must be Ok() for wildcard");
 
     // Test each external addr is_valid_host
-    let external_addrs = get_external_addrs().expect("get_external_addrs() must return a Ok(Vec<net::SocketAddr>) that is non-empty");
+    let external_addrs = get_external_addrs()
+        .expect("get_external_addrs() must return a Ok(Vec<net::SocketAddr>) that is non-empty");
     for external_addr in external_addrs {
         let ip_str = external_addr.ip().to_string();
         is_valid_host(&ip_str).expect(&format!("must be Ok() for IP {}", &ip_str));
