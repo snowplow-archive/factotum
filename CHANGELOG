@@ -1,3 +1,8 @@
+Version 0.4.1 (2017-03-16)
+--------------------------
+Fix panic!(..) on logging initialization error (#100)
+Fix behaviour on dot --overwrite (#97)
+
 Version 0.4.0 (2016-12-22)
 --------------------------
 Lock version for rust-mustache to 0.7.0 (#90)
