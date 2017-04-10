@@ -315,7 +315,7 @@ fn big_task_stdout_trimmed() {
 
     let now = UTC::now();
 
-    let max_len = 10000;
+    let max_len = 4000;
 
     example_tasks[0].state = State::Success;
     example_tasks[0].run_started = Some(now.clone());
@@ -373,7 +373,7 @@ fn big_task_stderr_trimmed() {
 
     let now = UTC::now();
 
-    let max_len = 10000;
+    let max_len = 4000;
 
     example_tasks[0].state = State::Success;
     example_tasks[0].run_started = Some(now.clone());

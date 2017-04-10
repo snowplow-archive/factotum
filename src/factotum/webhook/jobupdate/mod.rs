@@ -20,7 +20,7 @@ static JOB_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
 static TASK_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
                                                factotum/task_update/jsonschema/1-0-0";
 
-const MAX_STDOUT_STDERR_SIZE: usize = 10_000; // 10kb
+const MAX_STDOUT_STDERR_SIZE: usize = 4_000; // 4kb
 
 use factotum::executor::{ExecutionState, ExecutionUpdate, TaskSnapshot,
                          Transition as ExecutorTransition};
