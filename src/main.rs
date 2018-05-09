@@ -69,7 +69,7 @@ const USAGE: &'static str =
 Factotum.
 
 Usage:
-  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run] [--no-colour] [--webhook=<url>] [--tag=<tag>]... [--constraint=<constraint>]...
+  factotum run <factfile> [--start=<start_task>] [--env=<env>] [--dry-run] [--no-colour] [--webhook=<url>] [--tag=<tag>]... [--constraint=<constraint>]... [--max-stdouterr-size=<bytes>]
   factotum validate <factfile> [--no-colour]
   factotum dot <factfile> [--start=<start_task>] [--output=<output_file>] [--overwrite] [--no-colour]
   factotum (-h | --help) [--no-colour]
@@ -87,6 +87,7 @@ Options:
   --webhook=<url>                       Post updates on job execution to the specified URL.
   --tag=<tag>                           Add job metadata (tags).
   --constraint=<constraint>             Checks for an external constraint that will prevent execution; allowed constraints (host).
+  --max-stdouterr-size=<bytes>          The maximum size of the individual stdout/err sent via the webhook functions for job updates.
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -100,6 +101,7 @@ struct Args {
     flag_no_colour: bool,
     flag_tag: Option<Vec<String>>,
     flag_constraint: Option<Vec<String>>,
+    flag_max_stdouterr_size: Option<usize>,
     arg_factfile: String,
     flag_version: bool,
     cmd_run: bool,
@@ -334,6 +336,7 @@ fn parse_file_and_simulate(factfile: &str, env: Option<String>, start_from: Opti
                                              terminate_early: vec![],
                                          }),
                                          None,
+                                         None,
                                          None)
 }
 
@@ -341,7 +344,8 @@ fn parse_file_and_execute(factfile: &str,
                           env: Option<String>,
                           start_from: Option<String>,
                           webhook_url: Option<String>,
-                          job_tags: Option<HashMap<String, String>>)
+                          job_tags: Option<HashMap<String, String>>,
+                          max_stdouterr_size: Option<usize>)
                           -> i32 {
     parse_file_and_execute_with_strategy(factfile,
                                          env,
@@ -349,7 +353,8 @@ fn parse_file_and_execute(factfile: &str,
                                          factotum::executor::execution_strategy::execute_os,
                                          OverrideResultMappings::None,
                                          webhook_url,
-                                         job_tags)
+                                         job_tags,
+                                         max_stdouterr_size)
 }
 
 fn parse_file_and_execute_with_strategy<F>(factfile: &str,
@@ -358,7 +363,8 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                                            strategy: F,
                                            override_result_map: OverrideResultMappings,
                                            webhook_url: Option<String>,
-                                           job_tags: Option<HashMap<String, String>>)
+                                           job_tags: Option<HashMap<String, String>>,
+                                           max_stdouterr_size: Option<usize>)
                                            -> i32
     where F: Fn(&str, &mut Command) -> RunResult + Send + Sync + 'static + Copy
 {
@@ -380,7 +386,7 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
 
             let (maybe_updates_channel, maybe_join_handle) = if webhook_url.is_some() {
                 let url = webhook_url.unwrap();
-                let mut wh = Webhook::new(job.name.clone(), job.raw.clone(), url, job_tags);
+                let mut wh = Webhook::new(job.name.clone(), job.raw.clone(), url, job_tags, max_stdouterr_size);
                 let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
                 let join_handle =
                     wh.connect_webhook(rx, Webhook::http_post, webhook::backoff_rand_1_minute);
@@ -770,7 +776,8 @@ fn factotum() -> i32 {
                                    args.flag_env,
                                    args.flag_start,
                                    args.flag_webhook,
-                                   tag_map)
+                                   tag_map,
+                                   args.flag_max_stdouterr_size)
         } else {
             parse_file_and_simulate(&args.arg_factfile, args.flag_env, args.flag_start)
         }

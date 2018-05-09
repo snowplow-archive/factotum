@@ -85,6 +85,7 @@ pub struct Webhook {
     pub factfile_json: String,
     pub endpoint: String,
     job_context: JobContext,
+    pub max_stdouterr_size: usize,
 }
 
 impl Webhook {
@@ -116,15 +117,23 @@ impl Webhook {
         }
     }
 
-    pub fn new<S: Into<String>>(factfile_job_name: S, factfile_json: S, endpoint: S, job_tags:Option<HashMap<String,String>>) -> Self {
+    pub fn new<S: Into<String>>(factfile_job_name: S, factfile_json: S, endpoint: S, job_tags:Option<HashMap<String,String>>, max_stdouterr_size:Option<usize>) -> Self {
         let ff_name: String = factfile_job_name.into();
         let ff_json: String = factfile_json.into();
         let jc = jobcontext::JobContext::new(ff_name.clone(), &ff_json, job_tags);
+
+        let max_stdouterr_size_bytes: usize = if let Some(max_bytes) = max_stdouterr_size {
+            max_bytes
+        } else {
+            10_000
+        };
+
         Webhook {
             job_context: jc,
             factfile_job_name: ff_name,
             factfile_json: ff_json,
             endpoint: endpoint.into(),
+            max_stdouterr_size: max_stdouterr_size_bytes,
         }
     }
 
@@ -139,6 +148,7 @@ impl Webhook {
 
         let endpoint = self.endpoint.clone();
         let job_context = self.job_context.clone();
+        let max_stdouterr_size = self.max_stdouterr_size.clone();
 
         thread::spawn(move || {
 
@@ -157,7 +167,7 @@ impl Webhook {
                     done = true;
                 }
 
-                let job_update = jobupdate::JobUpdate::new(&job_context, &message);
+                let job_update = jobupdate::JobUpdate::new(&job_context, &message, &max_stdouterr_size);
                 let json_post_data = job_update.as_self_desc_json();
 
                 for _ in 0..MAX_RETRIES {

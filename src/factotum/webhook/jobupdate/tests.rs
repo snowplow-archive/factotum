@@ -39,7 +39,8 @@ fn to_json_valid_against_schema_job_transition() {
                              vec![],
                              Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
                                                                    ExecutionState::Finished)));
-    let job_update = JobUpdate::new(&context, &exec_update);
+    let max_stdouterr_size: usize = 10_000;
+    let job_update = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
     let json_wrapped = job_update.as_self_desc_json();
     println!("{}", json_wrapped);
     let result = schemavalidator::validate_schema(&json_wrapped, schema);
@@ -82,7 +83,8 @@ fn to_json_valid_against_schema_task_transition_running_to_failed() {
                                            tasks,
                                            Transition::Task(transitions));
 
-    let job_update = JobUpdate::new(&context, &exec_update);
+    let max_stdouterr_size: usize = 10_000;
+    let job_update = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
     let json_wrapped = job_update.as_self_desc_json();
 
     println!("{}", json_wrapped);
@@ -123,7 +125,8 @@ fn to_json_valid_against_schema_task_transition_waiting_to_running() {
                                            tasks,
                                            Transition::Task(transitions));
 
-    let job_update = JobUpdate::new(&context, &exec_update);
+    let max_stdouterr_size: usize = 10_000;
+    let job_update = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
     let json_wrapped = job_update.as_self_desc_json();
     println!("{}", json_wrapped);
 
@@ -137,7 +140,8 @@ fn to_json_valid_against_schema_task_transition_waiting_to_running() {
 #[test]
 fn to_task_states_empty() {
     let empty = vec![];
-    assert!(JobUpdate::to_task_states(&empty).is_empty());
+    let max_stdouterr_size: usize = 10_000;
+    assert!(JobUpdate::to_task_states(&empty, &max_stdouterr_size).is_empty());
 }
 
 #[test]
@@ -150,7 +154,8 @@ fn headers_correct() {
                              vec![],
                              Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
                                                                 ExecutionState::Finished)));
-    let job_update = JobUpdate::new(&context, &exec_update);
+    let max_stdouterr_size: usize = 10_000;
+    let job_update = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
 
     assert_eq!(context.job_reference, job_update.jobReference);
     assert_eq!(context.run_reference, job_update.runReference);
@@ -187,7 +192,8 @@ fn failed_headers_correct() {
                              tasks,
                              Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
                                                                 ExecutionState::Finished)));
-    let upd = JobUpdate::new(&context, &exec_update);
+    let max_stdouterr_size: usize = 10_000;
+    let upd = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
 
     assert_eq!(upd.runState, JobRunState::FAILED);
 }
@@ -205,7 +211,8 @@ fn task_states_converted_no_run_data() {
                                                                         ExecutionState::Started)));
 
     let context = JobContext::new("hello", "world", None);
-    let job_update = JobUpdate::new(&context, &start_sample);
+    let max_stdouterr_size: usize = 10_000;
+    let job_update = JobUpdate::new(&context, &start_sample, &max_stdouterr_size);
 
     let expected_state = TaskUpdate {
         taskName: "chocolate".to_string(),
@@ -256,7 +263,8 @@ fn task_states_converted_with_run_data() {
                                                                         ExecutionState::Started)));
 
     let context = JobContext::new("hello", "world", None);
-    let job_update = JobUpdate::new(&context, &start_sample);
+    let max_stdouterr_size: usize = 10_000;
+    let job_update = JobUpdate::new(&context, &start_sample, &max_stdouterr_size);
 
     let expected_states = vec![TaskUpdate {
                                    taskName: "chocolate".to_string(),
@@ -345,7 +353,8 @@ fn big_task_stdout_trimmed() {
                                                                         ExecutionState::Started)));
 
     let context = JobContext::new("hello", "world", None);
-    let job_update = JobUpdate::new(&context, &start_sample);
+    let max_stdouterr_size: usize = 10_000;
+    let job_update = JobUpdate::new(&context, &start_sample, &max_stdouterr_size);
 
 
     let expected_str = format!("{}tail", make_n_char_string(max_len-"tail".len()));
@@ -403,7 +412,8 @@ fn big_task_stderr_trimmed() {
                                                                         ExecutionState::Started)));
 
     let context = JobContext::new("hello", "world", None);
-    let job_update = JobUpdate::new(&context, &start_sample);
+    let max_stdouterr_size: usize = 10_000;
+    let job_update = JobUpdate::new(&context, &start_sample, &max_stdouterr_size);
 
 
     let expected_str = format!("{}tail", make_n_char_string(max_len-"tail".len()));
