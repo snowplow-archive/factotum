@@ -1,6 +1,6 @@
 # Factotum
 
-[![Build Status](https://travis-ci.org/snowplow/factotum.svg?branch=master)](https://travis-ci.org/snowplow/factotum) [![Release 0.4.1](http://img.shields.io/badge/release-0.4.1-blue.svg?style=flat)](https://github.com/snowplow/factotum/releases) [![Apache License 2.0](http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat)](http://www.apache.org/licenses/LICENSE-2.0)
+[![Build Status][travis-image]][travis] [![Release][release-image]][releases] [![Apache License 2.0][license-image]][license]
 
 A dag running tool designed for efficiently running complex jobs with non-trivial dependency trees. 
 
@@ -15,8 +15,8 @@ A dag running tool designed for efficiently running complex jobs with non-trivia
 Assuming you're running **64 bit Linux**: 
 
 ```{bash}
-wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.4.1_linux_x86_64.zip
-unzip factotum_0.4.1_linux_x86_64.zip
+wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.5.0_linux_x86_64.zip
+unzip factotum_0.5.0_linux_x86_64.zip
 ./factotum --version
 ```
 
@@ -132,7 +132,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
 
 Factotum is copyright 2016-2018 Snowplow Analytics Ltd.
 
-Licensed under the **[Apache License, Version 2.0] [license]** (the "License");
+Licensed under the **[Apache License, Version 2.0][license]** (the "License");
 you may not use this software except in compliance with the License.
 
 Unless required by applicable law or agreed to in writing, software
@@ -141,4 +141,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+[travis-image]: https://travis-ci.org/snowplow/factotum.svg?branch=master
+[travis]: https://travis-ci.org/snowplow/factotum
+
+[license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
+
+[release-image]: http://img.shields.io/badge/release-0.5.0-blue.svg?style=flat
+[releases]: https://github.com/snowplow/factotum/releases
