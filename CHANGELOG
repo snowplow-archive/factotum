@@ -1,3 +1,10 @@
+Version 0.5.0 (2018-06-26)
+--------------------------
+Configurable max event size for webhook updates (#94)
+Update Copyright years to 2016-2018 (#109)
+Change reference to "Snowplow" to "Factotum" in copyright notice in README (#93)
+Use pip2 instead of pip for OSX build on Travis (#110)
+
 Version 0.4.1 (2017-03-16)
 --------------------------
 Fix panic!(..) on logging initialization error (#100)
