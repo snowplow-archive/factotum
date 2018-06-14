@@ -1,4 +1,7 @@
 #!/bin/bash -e
 
-pip install --user --upgrade pip
-pip install --user release-manager==0.1.0rc3
+if [ "${TRAVIS_OS_NAME}" == "osx" ]; then
+    pip2 install --user release-manager==0.1.0
+else
+    pip install --user release-manager==0.1.0
+fi
