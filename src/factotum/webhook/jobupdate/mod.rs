@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Snowplow Analytics Ltd. All rights reserved.
+// Copyright (c) 2016-2018 Snowplow Analytics Ltd. All rights reserved.
 //
 // This program is licensed to you under the Apache License Version 2.0, and
 // you may not use this file except in compliance with the Apache License
@@ -19,8 +19,6 @@ static JOB_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
                                                factotum/job_update/jsonschema/1-0-0";
 static TASK_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
                                                factotum/task_update/jsonschema/1-0-0";
-
-const MAX_STDOUT_STDERR_SIZE: usize = 10_000; // 10kb
 
 use factotum::executor::{ExecutionState, ExecutionUpdate, TaskSnapshot,
                          Transition as ExecutorTransition};
@@ -215,11 +213,11 @@ pub struct JobUpdate {
     transition: Option<JobTransition>,
     transitions: Option<Vec<TaskTransition>>,
     taskStates: Vec<TaskUpdate>,
-    tags: HashMap<String,String>
+    tags: HashMap<String,String>,
 }
 
 impl JobUpdate {
-    pub fn new(context: &JobContext, execution_update: &ExecutionUpdate) -> Self {
+    pub fn new(context: &JobContext, execution_update: &ExecutionUpdate, max_stdouterr_size: &usize) -> Self {
         JobUpdate {
             jobName: context.job_name.clone(),
             jobReference: context.job_reference.clone(),
@@ -231,7 +229,7 @@ impl JobUpdate {
                                        &execution_update.task_snapshot),
             startTime: to_string_datetime(&context.start_time),
             runDuration: (UTC::now() - context.start_time).to_string(),
-            taskStates: JobUpdate::to_task_states(&execution_update.task_snapshot),
+            taskStates: JobUpdate::to_task_states(&execution_update.task_snapshot, &max_stdouterr_size),
             transition: {
                 match execution_update.transition {
                     ExecutorTransition::Job(ref j) => {
@@ -285,7 +283,7 @@ impl JobUpdate {
         json::encode(&wrapped).unwrap()
     }
 
-    fn to_task_states(tasks: &TaskSnapshot) -> Vec<TaskUpdate> {
+    fn to_task_states(tasks: &TaskSnapshot, max_stdouterr_size: &usize) -> Vec<TaskUpdate> {
         use chrono::duration::Duration as ChronoDuration;
 
         tasks.iter()
@@ -312,7 +310,7 @@ impl JobUpdate {
                     },
                     stdout: if let Some(ref r) = task.run_result {
                         if let Some(ref stdout) = r.stdout {
-                            Some(tail_n_chars(stdout, MAX_STDOUT_STDERR_SIZE).into())
+                            Some(tail_n_chars(stdout, *max_stdouterr_size).into())
                         } else {
                             None
                         }
@@ -321,7 +319,7 @@ impl JobUpdate {
                     },
                     stderr: if let Some(ref r) = task.run_result {
                         if let Some(ref stderr) = r.stderr {
-                            Some(tail_n_chars(stderr, MAX_STDOUT_STDERR_SIZE).into())
+                            Some(tail_n_chars(stderr, *max_stdouterr_size).into())
                         } else {
                             None
                         }
