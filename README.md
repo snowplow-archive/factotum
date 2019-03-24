@@ -118,7 +118,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
 * Set up a Vagrant box and ssh into it - `vagrant up && vagrant ssh`
    * This will take a few minutes
 * `cd /vagrant`
-* Compile and run a demo - `cargo run -- samples/echo.factfile` 
+* Compile and run a demo - `cargo run -- run samples/echo.factfile` 
 
 ### Using stable Rust without Vagrant 
 
@@ -126,7 +126,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
    * on Linux/Mac - `curl -sSf https://static.rust-lang.org/rustup.sh | sh`
 * Clone this repository - `git clone git@github.com:snowplow/factotum.git`
 * `cd factotum`
-* Compile and run a demo - `cargo run -- samples/echo.factfile` 
+* Compile and run a demo - `cargo run -- run samples/echo.factfile` 
 
 ## Copyright and license
 
