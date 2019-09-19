@@ -1,7 +1,7 @@
 {
     "schema": "iglu:com.snowplowanalytics.factotum/factfile/jsonschema/1-0-0",
     "data": {
-        "name": "echo order demo",
+        "name": "echo order demo {{ env }}",
         "tasks": [
             {
                 "name": "echo alpha {{ env }}",

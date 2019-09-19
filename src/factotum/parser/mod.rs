@@ -133,7 +133,14 @@ fn parse_valid_json(file: &str,
     let schema: SelfDescribingJson = try!(json::decode(file).map_err(|e| e.to_string()));
     let compact_json:String = try!(json::encode(&schema).map_err(|e| e.to_string()));
     let decoded_json = schema.data;
-    let mut ff = factfile::Factfile::new(compact_json, decoded_json.name.clone());
+
+    let final_dag_name = if let Some(ref subs) = conf {
+        try!(templater::decorate_str(&decoded_json.name, &subs))
+    } else {
+        decoded_json.name.clone()
+    }.to_string();
+
+    let mut ff = factfile::Factfile::new(compact_json, final_dag_name);
 
     for file_task in decoded_json.tasks.iter() {
         let final_name = if let Some(ref subs) = conf {
