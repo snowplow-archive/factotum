@@ -1,0 +1,41 @@
+{
+    "schema": "iglu:com.snowplowanalytics.factotum/factfile/jsonschema/1-0-0",
+    "data": {
+        "name": "echo order demo",
+        "tasks": [
+            {
+                "name": "echo alpha {{ env }}",
+                "executor": "shell",
+                "command": "echo",
+                "arguments": [ "alpha" ],
+                "dependsOn": [],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "echo beta",
+                "executor": "shell",
+                "command": "echo",
+                "arguments": [ "beta" ],
+                "dependsOn": [ "echo alpha {{ env }}" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            },
+            {
+                "name": "echo omega",
+                "executor": "shell",
+                "command": "echo",
+                "arguments": [ "and omega!" ],
+                "dependsOn": [ "echo beta" ],
+                "onResult": {
+                    "terminateJobWithSuccess": [ 3 ],
+                    "continueJob": [ 0 ]
+                }
+            }
+        ]
+    }
+}
