@@ -1,4 +1,4 @@
 To get started:
 vagrant ssh
 cd /vagrant
-cargo run
+cargo run -- run samples/echo.factfile
