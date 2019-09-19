@@ -15,8 +15,8 @@ A dag running tool designed for efficiently running complex jobs with non-trivia
 Assuming you're running **64 bit Linux**: 
 
 ```{bash}
-wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.5.0_linux_x86_64.zip
-unzip factotum_0.5.0_linux_x86_64.zip
+wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.6.0_linux_x86_64.zip
+unzip factotum_0.6.0_linux_x86_64.zip
 ./factotum --version
 ```
 
@@ -147,5 +147,5 @@ limitations under the License.
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
 
-[release-image]: http://img.shields.io/badge/release-0.5.0-blue.svg?style=flat
+[release-image]: http://img.shields.io/badge/release-0.6.0-blue.svg?style=flat
 [releases]: https://github.com/snowplow/factotum/releases
