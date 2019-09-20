@@ -7,7 +7,7 @@
                 "name": "echo alpha {{ env }}",
                 "executor": "shell",
                 "command": "echo",
-                "arguments": [ "alpha" ],
+                "arguments": [ "alpha {{ env }}" ],
                 "dependsOn": [],
                 "onResult": {
                     "terminateJobWithSuccess": [ 3 ],
