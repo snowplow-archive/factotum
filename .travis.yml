@@ -1,9 +1,10 @@
 language: rust
+dist: trusty
 rust:
-- stable
-- beta
-- nightly
-os: 
+  - stable
+  - beta
+  - nightly
+os:
   - linux
   - osx
 matrix:
