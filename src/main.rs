@@ -899,7 +899,7 @@ fn validate_ok_factfile_bad() {
         Ok(_) => panic!("Validation returning valid for invalid file"),
         Err(msg) => {
             let expected = format!("'{}' is not a valid", test_file_path);
-            assert_eq!(expected, msg[5..expected.len() + 5]) // ignore red colour code
+            assert!(msg.contains(&expected))
         }
     }
 }
