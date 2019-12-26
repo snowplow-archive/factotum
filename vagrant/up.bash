@@ -7,7 +7,7 @@ echo "======================="
 echo "INSTALLING DEPENDENCIES"
 echo "-----------------------"
 apt-get update
-apt-get install -y language-pack-en git unzip libyaml-dev python3-pip python-pip python-yaml python-paramiko python-jinja2 libssl-dev
+apt-get install -y language-pack-en git unzip libyaml-dev python3-pip python-pip python-yaml python-paramiko python-jinja2 libssl-dev pkg-config
 
 echo "======================="
 echo "INSTALLING RUST & CARGO"

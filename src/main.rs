@@ -25,6 +25,7 @@ extern crate rand;
 extern crate crypto;
 extern crate uuid;
 extern crate hyper;
+extern crate hyper_native_tls;
 extern crate libc;
 extern crate ifaces;
 extern crate dns_lookup;

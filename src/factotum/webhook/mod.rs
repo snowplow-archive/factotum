@@ -91,11 +91,15 @@ pub struct Webhook {
 impl Webhook {
     pub fn http_post(url: &str, data: &str) -> Result<u32, (u32, String)> {
         use hyper::Client;
+        use hyper::net::HttpsConnector;
+        use hyper_native_tls::NativeTlsClient;
         use hyper::header::{Headers, ContentType};
         use hyper::mime::{Mime, TopLevel, SubLevel, Attr, Value};
         use hyper::status;
 
-        let client = Client::new();
+        let ssl = NativeTlsClient::new().unwrap();
+        let connector = HttpsConnector::new(ssl);
+        let client = Client::with_connector(connector);
         let mut headers = Headers::new();
         headers.set(ContentType(Mime(TopLevel::Application,
                                      SubLevel::Json,
