@@ -176,25 +176,3 @@ fn overrides_set_noop_values() {
     }
 
 }
-
-#[test]
-fn inflate_env_produces_json() {
-    let sample = "{\"hello\":\"world\"}";
-    if let Ok(j) = inflate_env(sample) {
-        assert_eq!(Json::from_str(sample).unwrap(), j)
-    } else {
-        panic!("valid json did not produce inflated json")
-    }
-}
-
-#[test]
-fn inflate_env_bad_json() {
-    let invalid = "{\"hello\":\"world\""; // missing final }
-    if let Err(msg) = inflate_env(invalid) {
-        assert_eq!("Supplied environment/config '{\"hello\":\"world\"' is not valid JSON: failed \
-                    to parse json",
-                   msg)
-    } else {
-        panic!("invalid json parsed successfully")
-    }
-}

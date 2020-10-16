@@ -50,6 +50,8 @@ use std::env;
 use hyper::Url;
 use std::sync::mpsc;
 use std::net;
+use rustc_serialize::json::{self, Json, ToJson};
+use std::collections::BTreeMap;
 #[cfg(test)]
 use std::fs::File;
 use std::collections::HashMap;
@@ -320,14 +322,14 @@ fn dot(factfile: &str, start_from: Option<String>) -> Result<String, String> {
     Ok(ff.as_dotfile(start_from))
 }
 
-fn validate(factfile: &str, env: Option<String>) -> Result<String, String> {
+fn validate(factfile: &str, env: Option<Json>) -> Result<String, String> {
     match factotum::parser::parse(factfile, env, OverrideResultMappings::None) {
         Ok(_) => Ok(format!("'{}' is a valid Factfile!", factfile).green().to_string()),
         Err(msg) => Err(msg.red().to_string()),
     }
 }
 
-fn parse_file_and_simulate(factfile: &str, env: Option<String>, start_from: Option<String>) -> i32 {
+fn parse_file_and_simulate(factfile: &str, env: Option<Json>, start_from: Option<String>) -> i32 {
     parse_file_and_execute_with_strategy(factfile,
                                          env,
                                          start_from,
@@ -342,7 +344,7 @@ fn parse_file_and_simulate(factfile: &str, env: Option<String>, start_from: Opti
 }
 
 fn parse_file_and_execute(factfile: &str,
-                          env: Option<String>,
+                          env: Option<Json>,
                           start_from: Option<String>,
                           webhook_url: Option<String>,
                           job_tags: Option<HashMap<String, String>>,
@@ -359,7 +361,7 @@ fn parse_file_and_execute(factfile: &str,
 }
 
 fn parse_file_and_execute_with_strategy<F>(factfile: &str,
-                                           env: Option<String>,
+                                           env: Option<Json>,
                                            start_from: Option<String>,
                                            strategy: F,
                                            override_result_map: OverrideResultMappings,
@@ -669,6 +671,44 @@ fn test_tag_map() {
     assert_eq!(with_comma, expected_comma);
 }
 
+fn json_str_to_btreemap(j: &str) -> Result<BTreeMap<String, String>, String> {
+    json::decode(j).map_err(|err| {
+        format!("Supplied string '{}' is not valid JSON: {}",
+                j,
+                Error::description(&err))
+    })
+}
+
+fn str_to_json(s: &str) -> Result<Json, String> {
+    Json::from_str(s).map_err(|err| {
+        format!("Supplied string '{}' is not valid JSON: {}",
+                s,
+                Error::description(&err))
+    })
+}
+
+#[test]
+fn str_to_json_produces_json() {
+    let sample = "{\"hello\":\"world\"}";
+    if let Ok(j) = str_to_json(sample) {
+        assert_eq!(Json::from_str(sample).unwrap(), j)
+    } else {
+        panic!("valid json did not produce inflated json")
+    }
+}
+
+#[test]
+fn str_to_json_bad_json() {
+    let invalid = "{\"hello\":\"world\""; // missing final }
+    if let Err(msg) = str_to_json(invalid) {
+        assert_eq!("Supplied string '{\"hello\":\"world\"' is not valid JSON: failed \
+                    to parse json",
+                   msg)
+    } else {
+        panic!("invalid json parsed successfully")
+    }
+}
+
 fn get_log_config() -> Result<log4rs::config::Config, String> {    
     let file_appender = match log4rs::appender::FileAppender::builder(".factotum/factotum.log").build() {
         Ok(fa) => fa,
@@ -709,7 +749,6 @@ fn main() {
 }
 
 fn factotum() -> i32 {
-
     if let Err(log) = init_logger() {
         println!("Log initialization error: {}", log);
         return PROC_OTHER_ERROR;
@@ -727,6 +766,40 @@ fn factotum() -> i32 {
         Some(get_tag_map(&tags))
     } else {
         None
+    };
+
+    // Environment should always be present as tags can populate the env
+    let env_str: String = if let Some(c) = args.flag_env {
+        c
+    } else {
+        "{}".to_string()
+    };
+
+    let env_json: Option<Json> = {
+        match json_str_to_btreemap(&env_str) {
+            Ok(mut a) => {
+                if let Some(tm) = tag_map.as_ref() {
+                    for (key, value) in tm {
+                        let tag_key = format!("tag:{}", key.to_string());
+                        a.insert(tag_key, value.to_string());
+                    }
+                }
+
+                match str_to_json(&json::encode(&a).unwrap()) {
+                    Ok(a) => {
+                        Some(a)
+                    }
+                    Err(e) => {
+                        print!("{}", e);
+                        return PROC_OTHER_ERROR;
+                    }
+                }
+            }
+            Err(e) => {
+                print!("{}", e);
+                return PROC_OTHER_ERROR;
+            }
+        }
     };
 
     if args.flag_no_colour {
@@ -774,16 +847,16 @@ fn factotum() -> i32 {
 
         if !args.flag_dry_run {
             parse_file_and_execute(&args.arg_factfile,
-                                   args.flag_env,
+                                   env_json,
                                    args.flag_start,
                                    args.flag_webhook,
                                    tag_map,
                                    args.flag_max_stdouterr_size)
         } else {
-            parse_file_and_simulate(&args.arg_factfile, args.flag_env, args.flag_start)
+            parse_file_and_simulate(&args.arg_factfile, env_json, args.flag_start)
         }
     } else if args.cmd_validate {
-        match validate(&args.arg_factfile, args.flag_env) {
+        match validate(&args.arg_factfile, env_json) {
             Ok(msg) => {
                 println!("{}", msg);
                 PROC_SUCCESS

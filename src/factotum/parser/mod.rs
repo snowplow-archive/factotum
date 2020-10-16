@@ -35,7 +35,7 @@ pub enum OverrideResultMappings {
 }
 
 pub fn parse(factfile: &str,
-             env: Option<String>,
+             env: Option<Json>,
              overrides: OverrideResultMappings)
              -> Result<factfile::Factfile, String> {
     info!("reading {} into memory", factfile);
@@ -48,17 +48,9 @@ pub fn parse(factfile: &str,
     parse_str(&f, factfile, env, overrides)
 }
 
-pub fn inflate_env(env: &str) -> Result<Json, String> {
-    Json::from_str(env).map_err(|err| {
-        format!("Supplied environment/config '{}' is not valid JSON: {}",
-                env,
-                Error::description(&err))
-    })
-}
-
 fn parse_str(json: &str,
              from_filename: &str,
-             env: Option<String>,
+             env: Option<Json>,
              overrides: OverrideResultMappings)
              -> Result<factfile::Factfile, String> {
     info!("parsing json:\n{}", json);
@@ -70,15 +62,7 @@ fn parse_str(json: &str,
             info!("'{}' matches the factotum schema definition!",
                   from_filename);
 
-            let conf = if let Some(c) = env {
-                info!("inflating config:\n{}", c);
-                Some(try!(inflate_env(&c)))
-            } else {
-                info!("no config specified!");
-                None
-            };
-
-            parse_valid_json(json, conf, overrides).map_err(|msg| {
+            parse_valid_json(json, env, overrides).map_err(|msg| {
                 format!("'{}' is not a valid factotum factfile: {}",
                         from_filename,
                         msg)
