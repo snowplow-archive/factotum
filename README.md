@@ -126,7 +126,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
    * on Linux/Mac - `curl -sSf https://static.rust-lang.org/rustup.sh | sh`
 * Clone this repository - `git clone git@github.com:snowplow/factotum.git`
 * `cd factotum`
-* Compile and run a demo - `cargo run -- samples/echo.factfile` 
+* Compile and run a demo - `cargo run -- run samples/echo.factfile` 
 
 ## Copyright and license
 
@@ -144,5 +144,5 @@ limitations under the License.
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
 
-[release-image]: http://img.shields.io/badge/release-0.5.0-blue.svg?style=flat
+[release-image]: http://img.shields.io/badge/release-0.6.0-blue.svg?style=flat
 [releases]: https://github.com/snowplow/factotum/releases
