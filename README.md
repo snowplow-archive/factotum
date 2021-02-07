@@ -130,7 +130,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
 
 ## Copyright and license
 
-Factotum is copyright 2016-2019 Snowplow Analytics Ltd.
+Factotum is copyright 2016-2021 Snowplow Analytics Ltd.
 
 Licensed under the **[Apache License, Version 2.0][license]** (the "License");
 you may not use this software except in compliance with the License.
