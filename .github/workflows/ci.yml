@@ -26,11 +26,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Build
-      run: cargo build --verbose
-
     - name: Test
-      run: cargo test --verbose
+      run: make test
+
+    - name: Build
+      run: make debug
 
     - uses: Swatinem/rust-cache@v1
 
@@ -53,10 +53,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Build
-      run: cargo build --verbose
-
     - name: Test
-      run: cargo test --verbose
+      run: make test
+
+    - name: Build
+      run: make debug
 
     - uses: Swatinem/rust-cache@v1
