@@ -1,3 +1,17 @@
+Version 0.6.0 (2021-02-07)
+--------------------------
+Fix Vagrant build environment (#114)
+Add ability to template the name of a step in a Factotum DAG (#113)
+Add ability to template the name of a Factotum DAG (#117)
+Update Copyright years to 2016-2019 (#115)
+Ensure raw factfile is templated to allow webhooks to work (#118)
+Fix failing tests on Rust 1.40.0 (#120)
+Bump hyper to 0.10.+ to support OpenSSL 1.1 (#119)
+Target Ubuntu Trusty for Linux builds (#122)
+Append tags to the environment so as to make them available to sub-processes (#121)
+Migrate to Git Actions and remove Bintray (#124)
+Update Copyright years to 2016-2021 (#125)
+
 Version 0.5.0 (2018-06-26)
 --------------------------
 Configurable max event size for webhook updates (#94)

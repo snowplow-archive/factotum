@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018 Snowplow Analytics Ltd. All rights reserved.
+// Copyright (c) 2016-2021 Snowplow Analytics Ltd. All rights reserved.
 //
 // This program is licensed to you under the Apache License Version 2.0, and
 // you may not use this file except in compliance with the Apache License
@@ -175,26 +175,4 @@ fn overrides_set_noop_values() {
         panic!("valid factfile example_ok.factfile should have parsed but didn't");
     }
 
-}
-
-#[test]
-fn inflate_env_produces_json() {
-    let sample = "{\"hello\":\"world\"}";
-    if let Ok(j) = inflate_env(sample) {
-        assert_eq!(Json::from_str(sample).unwrap(), j)
-    } else {
-        panic!("valid json did not produce inflated json")
-    }
-}
-
-#[test]
-fn inflate_env_bad_json() {
-    let invalid = "{\"hello\":\"world\""; // missing final }
-    if let Err(msg) = inflate_env(invalid) {
-        assert_eq!("Supplied environment/config '{\"hello\":\"world\"' is not valid JSON: failed \
-                    to parse json",
-                   msg)
-    } else {
-        panic!("invalid json parsed successfully")
-    }
 }

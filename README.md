@@ -1,6 +1,6 @@
 # Factotum
 
-[![Build Status][travis-image]][travis] [![Release][release-image]][releases] [![Apache License 2.0][license-image]][license]
+[![Release][release-image]][releases] [![Apache License 2.0][license-image]][license]
 
 A dag running tool designed for efficiently running complex jobs with non-trivial dependency trees. 
 
@@ -15,8 +15,8 @@ A dag running tool designed for efficiently running complex jobs with non-trivia
 Assuming you're running **64 bit Linux**: 
 
 ```{bash}
-wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.5.0_linux_x86_64.zip
-unzip factotum_0.5.0_linux_x86_64.zip
+wget https://github.com/snowplow/factotum/releases/download/0.6.0/factotum_0.6.0_linux_x86_64.zip
+unzip factotum_0.6.0_linux_x86_64.zip
 ./factotum --version
 ```
 
@@ -118,7 +118,7 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
 * Set up a Vagrant box and ssh into it - `vagrant up && vagrant ssh`
    * This will take a few minutes
 * `cd /vagrant`
-* Compile and run a demo - `cargo run -- samples/echo.factfile` 
+* Compile and run a demo - `cargo run -- run samples/echo.factfile` 
 
 ### Using stable Rust without Vagrant 
 
@@ -126,11 +126,11 @@ Factotum is written in **[Rust](https://www.rust-lang.org/)**.
    * on Linux/Mac - `curl -sSf https://static.rust-lang.org/rustup.sh | sh`
 * Clone this repository - `git clone git@github.com:snowplow/factotum.git`
 * `cd factotum`
-* Compile and run a demo - `cargo run -- samples/echo.factfile` 
+* Compile and run a demo - `cargo run -- run samples/echo.factfile` 
 
 ## Copyright and license
 
-Factotum is copyright 2016-2018 Snowplow Analytics Ltd.
+Factotum is copyright 2016-2021 Snowplow Analytics Ltd.
 
 Licensed under the **[Apache License, Version 2.0][license]** (the "License");
 you may not use this software except in compliance with the License.
@@ -141,11 +141,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-[travis-image]: https://travis-ci.org/snowplow/factotum.svg?branch=master
-[travis]: https://travis-ci.org/snowplow/factotum
-
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
 
-[release-image]: http://img.shields.io/badge/release-0.5.0-blue.svg?style=flat
+[release-image]: http://img.shields.io/badge/release-0.6.0-blue.svg?style=flat
 [releases]: https://github.com/snowplow/factotum/releases
