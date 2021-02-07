@@ -1,6 +1,6 @@
 [package]
 name = "factotum"
-version = "0.6.0-rc8"
+version = "0.6.0-rc9"
 authors = ["Ed Lewis <support@snowplowanalytics.com>", "Josh Beemster <support@snowplowanalytics.com>"]
 
 [dependencies]
