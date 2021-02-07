@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches:
+    - '*'
+    - '*/*'
+    - '**'
+
+jobs:
+  build-ubuntu:
+    name: Compile & Test
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-18.04, ubuntu-16.04]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Install latest rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        default: true
+        override: true
+
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Test
+      run: cargo test --verbose
+
+  build-macos:
+    name: Compile & Test
+    strategy:
+      matrix:
+        os: [macos-11.0, macos-10.15]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Install latest rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: x86_64-apple-darwin
+        default: true
+        override: true
+
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Test
+      run: cargo test --verbose
