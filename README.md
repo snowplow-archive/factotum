@@ -1,6 +1,6 @@
 # Factotum
 
-[![Build Status][travis-image]][travis] [![Release][release-image]][releases] [![Apache License 2.0][license-image]][license]
+[![Release][release-image]][releases] [![Apache License 2.0][license-image]][license]
 
 A dag running tool designed for efficiently running complex jobs with non-trivial dependency trees. 
 
@@ -15,8 +15,8 @@ A dag running tool designed for efficiently running complex jobs with non-trivia
 Assuming you're running **64 bit Linux**: 
 
 ```{bash}
-wget https://bintray.com/artifact/download/snowplow/snowplow-generic/factotum_0.5.0_linux_x86_64.zip
-unzip factotum_0.5.0_linux_x86_64.zip
+wget https://github.com/snowplow/factotum/releases/download/0.6.0/factotum_0.6.0_linux_x86_64.zip
+unzip factotum_0.6.0_linux_x86_64.zip
 ./factotum --version
 ```
 
@@ -140,9 +140,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-[travis-image]: https://travis-ci.org/snowplow/factotum.svg?branch=master
-[travis]: https://travis-ci.org/snowplow/factotum
 
 [license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
 [license]: http://www.apache.org/licenses/LICENSE-2.0
