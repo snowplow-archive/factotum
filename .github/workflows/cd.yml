@@ -37,6 +37,12 @@ jobs:
         PLATFORM: linux
         BUILD_VERSION: ${{ steps.get_version.outputs.VERSION }}
 
+    - name: Upload binary
+      uses: actions/upload-artifact@v2
+      with:
+        name: factotum_${{ steps.get_version.outputs.VERSION }}_linux_x86_64.zip
+        path: build/compiled/factotum_${{ steps.get_version.outputs.VERSION }}_linux_x86_64.zip
+
   macos:
     name: Compile macOS
     strategy:
@@ -69,6 +75,12 @@ jobs:
         PLATFORM: darwin
         BUILD_VERSION: ${{ steps.get_version.outputs.VERSION }}
 
+    - name: Upload binary
+      uses: actions/upload-artifact@v2
+      with:
+        name: factotum_${{ steps.get_version.outputs.VERSION }}_darwin_x86_64.zip
+        path: build/compiled/factotum_${{ steps.get_version.outputs.VERSION }}_darwin_x86_64.zip
+
   release:
     needs: ["ubuntu", "macos"]
 
@@ -88,6 +100,22 @@ jobs:
         release_name: Release ${{ github.ref }}
         draft: false
         prerelease: false
+
+    - name: Extract tag version from ref
+      id: get_version
+      run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+    - run: mkdir -p ./build/compiled
+
+    - uses: actions/download-artifact@v2
+      with:
+        name: factotum_${{ steps.get_version.outputs.VERSION }}_linux_x86_64.zip
+        path: build/compiled
+
+    - uses: actions/download-artifact@v2
+      with:
+        name: factotum_${{ steps.get_version.outputs.VERSION }}_darwin_x86_64.zip
+        path: build/compiled
 
     - name: Upload release binaries
       uses: alexellis/upload-assets@0.2.3
