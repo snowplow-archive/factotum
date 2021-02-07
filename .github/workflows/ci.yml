@@ -32,6 +32,8 @@ jobs:
     - name: Test
       run: cargo test --verbose
 
+    - uses: Swatinem/rust-cache@v1
+
   build-macos:
     name: Compile & Test
     strategy:
@@ -56,3 +58,5 @@ jobs:
 
     - name: Test
       run: cargo test --verbose
+
+    - uses: Swatinem/rust-cache@v1
